@@ -85,12 +85,24 @@ def add_iface_to_container(container_name: str, info: OVSInterfaceInfo) -> None:
     :raises RuntimeError: If failed to add an interface to a container
     :raises ValueError: If ipaddress syntax is incorrect.
     """
+    # Check if container exists, skip if it does not exist.
+    check = subprocess.run(
+        f"docker ps -f name={container_name} -q".split(),
+        capture_output=True,
+        check=False,
+    )
+    if not bool(check.stdout):
+        return
+
     bridge = info["bridge"]  # Mandatory
     iface = info["iface"]  # Mandatory
     ipaddress = info.get("ipaddress")
     gateway = info.get("gateway")
+    ip6address = info.get("ip6address")
+    gateway6 = info.get("gateway6")
     macaddress = info.get("macaddress")
     vlan = info.get("vlan")
+    trunk = info.get("trunk")
 
     cmd = f"ovs-docker add-port {bridge} {iface} {container_name}"
     if ipaddress:
@@ -102,6 +114,16 @@ def add_iface_to_container(container_name: str, info: OVSInterfaceInfo) -> None:
 
     if gateway:
         cmd = f"{cmd} --gateway={gateway}"
+
+    if ip6address:
+        if "/" not in ip6address:
+            raise ValueError(f"ip6 {ip6address} must have a prefix mask")
+        if not isinstance(ip.ip_interface(ip6address), ip.IPv6Interface):
+            raise ValueError(f"ip6address {ip6address} must be valid IPv6 address")
+        cmd = f"{cmd} --ip6address={ip6address}"
+
+    if gateway6:
+        cmd = f"{cmd} --gateway6={gateway6}"
 
     if macaddress:
         cmd = f"{cmd} --macaddress={macaddress}"
@@ -151,6 +173,19 @@ def add_iface_to_container(container_name: str, info: OVSInterfaceInfo) -> None:
             f"Failed to set VLAN ID {vlan} on iface {iface}"
             f" from {bridge} in container {container_name}."
         ) from exc
+
+    if trunk:
+        try:
+            subprocess.run(
+                f"ovs-docker set-trunk {bridge} {iface} {container_name} "
+                f"{trunk}".split(),
+                check=True,
+            )
+        except subprocess.CalledProcessError as exc:
+            raise RuntimeError(
+                f"Failed to set Trunk IDs {trunk} on iface {iface}"
+                f" from {bridge} in container {container_name}."
+            ) from exc
 
 
 def main() -> None:

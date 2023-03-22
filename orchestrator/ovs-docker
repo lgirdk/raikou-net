@@ -78,12 +78,20 @@ add_port () {
                 ADDRESS=`expr X"$1" : 'X[^=]*=\(.*\)'`
                 shift
                 ;;
+            --ip6address=*)
+                ADDRESS6=`expr X"$1" : 'X[^=]*=\(.*\)'`
+                shift
+                ;;
             --macaddress=*)
                 MACADDRESS=`expr X"$1" : 'X[^=]*=\(.*\)'`
                 shift
                 ;;
             --gateway=*)
                 GATEWAY=`expr X"$1" : 'X[^=]*=\(.*\)'`
+                shift
+                ;;
+            --gateway6=*)
+                GATEWAY6=`expr X"$1" : 'X[^=]*=\(.*\)'`
                 shift
                 ;;
             --mtu=*)
@@ -149,6 +157,11 @@ add_port () {
         ip netns exec "$PID" ip addr add "$ADDRESS" dev "$INTERFACE"
     fi
 
+    if [ -n "$ADDRESS6" ]; then
+        ip netns exec "$PID" sysctl -w net.ipv6.conf.$INTERFACE.disable_ipv6=0
+        ip netns exec "$PID" ip -6 addr add "$ADDRESS6" dev "$INTERFACE"
+    fi
+
     if [ -n "$MACADDRESS" ]; then
         ip netns exec "$PID" ip link set dev "$INTERFACE" address "$MACADDRESS"
     fi
@@ -157,6 +170,9 @@ add_port () {
         ip netns exec "$PID" ip route add default via "$GATEWAY"
     fi
 
+    if [ -n "$GATEWAY6" ]; then
+        ip netns exec "$PID" ip -6 route add default via "$GATEWAY6"
+    fi
 }
 
 del_port () {
@@ -217,6 +233,24 @@ set_vlan () {
     ovs_vsctl set port "$PORT" tag="$VLAN"
 }
 
+set_trunk () {
+    BRIDGE="$1"
+    INTERFACE="$2"
+    CONTAINER_ID="$3"
+    VLANS="$4"
+
+    if [ "$#" -lt 4 ]; then
+        usage
+        exit 1
+    fi
+
+    PORT=`get_port_for_container_interface "$CONTAINER_ID" "$INTERFACE"`
+    if [ -z "$PORT" ]; then
+        exit 1
+    fi
+    ovs_vsctl set port "$PORT" trunks="$VLANS"
+}
+
 usage() {
     cat << EOF
 ${UTIL}: Performs integration of Open vSwitch with Docker.
@@ -233,6 +267,7 @@ Commands:
                     and MTU.  e.g.:
                     ${UTIL} add-port br-int eth1 c474a0e2830e
                     --ipaddress=192.168.1.2/24 --gateway=192.168.1.1
+                    --ip6address=2001::100/64 --gateway6=2001::1
                     --macaddress="a2:c3:0d:49:7f:f8" --mtu=1450
   del-port BRIDGE INTERFACE CONTAINER
                     Deletes INTERFACE inside CONTAINER and removes its
@@ -285,6 +320,11 @@ case $1 in
     "set-vlan")
         shift
         set_vlan "$@"
+        exit 0
+        ;;
+    "set-trunk")
+        shift
+        set_trunk "$@"
         exit 0
         ;;
     -h | --help)
