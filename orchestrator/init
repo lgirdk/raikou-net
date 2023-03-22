@@ -1,0 +1,14 @@
+#!/bin/bash -xe
+
+# need to initialize and clean ovs modules
+# at least once before running in supervisord
+/usr/share/openvswitch/scripts/ovs-ctl start --system-id=random --ovsdb-server-options='--remote=ptcp:6640'
+/usr/share/openvswitch/scripts/ovs-ctl force-reload-kmod
+/usr/share/openvswitch/scripts/ovs-ctl stop
+
+if [ $# -gt 0 ]; then
+    /usr/bin/supervisord -c /etc/supervisord.conf
+    exec "$@"
+else
+    /usr/bin/supervisord -n -c /etc/supervisord.conf
+fi
