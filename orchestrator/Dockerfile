@@ -22,6 +22,8 @@ RUN apk add -u --no-cache openvswitch=2.17.3-r0 \
 COPY init /root/init
 # Add supervisord configuration file
 COPY supervisord.conf /etc/supervisord.conf
+COPY orchestrator.py /root/orchestrator.py
+COPY config.json /root/config.json
 COPY ovs-docker /usr/bin/ovs-docker
 
 ENTRYPOINT [ "/root/init" ]
