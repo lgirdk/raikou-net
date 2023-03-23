@@ -312,6 +312,11 @@ case $1 in
         del_port "$@"
         exit 0
         ;;
+    "get-port")
+        shift
+        get_port_for_container_interface "$@"
+        exit 0
+        ;;
     "del-ports")
         shift
         del_ports "$@"

@@ -136,18 +136,39 @@ def add_iface_to_container(container_name: str, info: OVSInterfaceInfo) -> None:
         check=False,
     )
     if check.returncode == 0:
-        # If interface exist, no point in readding.
-        return
+        # Found a corner case
+        # If orchestrator restarts containers still have their old interface
+        # However, ovs does not have a link to them.
+        # In that case we need to clean the container interface ourself.
+        check = subprocess.run(
+            f"ovs-docker get-port {container_name} {iface}".split(),
+            capture_output=True,
+            check=False,
+        )
+        if bool(check.stdout.strip()):
+            # If interface exists and OVS link is present, return
+            return
 
-    logging.info("\n###################Captured Logs######################")
-    logging.info("Container: %s was missing interface %s!!", iface, container_name)
-    # del the OVS mapped port
-    # This does not get cleared by default.
-    subprocess.run(
-        f"ovs-docker del-port {bridge} {iface} {container_name}".split(),
-        check=False,
-        capture_output=False,
-    )
+        logging.info("\n###################Captured Logs######################")
+        logging.info("Orchestrator must have restarted!!")
+        logging.info("Removing iface %s from container: %s", iface, container_name)
+        subprocess.run(
+            f"docker exec {container_name} ip link del {iface}".split(),
+            check=False,
+            capture_output=False,
+        )
+    else:
+        logging.info("\n###################Captured Logs######################")
+        logging.info("Container: %s was missing interface %s!!", iface, container_name)
+
+        # del the OVS mapped port
+        # If container has lost its interface
+        subprocess.run(
+            f"ovs-docker del-port {bridge} {iface} {container_name}".split(),
+            check=False,
+            capture_output=False,
+        )
+
     try:
         subprocess.run(cmd.split(), check=True)
         logging.info(
@@ -174,18 +195,19 @@ def add_iface_to_container(container_name: str, info: OVSInterfaceInfo) -> None:
             f" from {bridge} in container {container_name}."
         ) from exc
 
-    if trunk:
-        try:
-            subprocess.run(
-                f"ovs-docker set-trunk {bridge} {iface} {container_name} "
-                f"{trunk}".split(),
-                check=True,
-            )
-        except subprocess.CalledProcessError as exc:
-            raise RuntimeError(
-                f"Failed to set Trunk IDs {trunk} on iface {iface}"
-                f" from {bridge} in container {container_name}."
-            ) from exc
+    if not trunk:
+        return
+    try:
+        subprocess.run(
+            f"ovs-docker set-trunk {bridge} {iface} {container_name} "
+            f"{trunk}".split(),
+            check=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(
+            f"Failed to set Trunk IDs {trunk} on iface {iface}"
+            f" from {bridge} in container {container_name}."
+        ) from exc
 
 
 def main() -> None:
