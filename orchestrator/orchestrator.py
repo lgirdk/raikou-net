@@ -15,16 +15,16 @@ import logging
 from pathlib import Path
 from typing import TypedDict
 
-logger = logging.getLogger()
-logger.setLevel(logging.DEBUG)
+_LOGGER = logging.getLogger()
+_LOGGER.setLevel(logging.DEBUG)
 
-handler = logging.StreamHandler(sys.stdout)
-handler.setLevel(logging.DEBUG)
+_HANDLER = logging.StreamHandler(sys.stdout)
+_HANDLER.setLevel(logging.DEBUG)
 
 FORMAT = "[%(asctime)s] [%(levelname)s] %(funcName)s:: %(message)s"
-formatter = logging.Formatter(FORMAT)
-handler.setFormatter(formatter)
-logger.addHandler(handler)
+_FORMATTER = logging.Formatter(FORMAT)
+_HANDLER.setFormatter(_FORMATTER)
+_LOGGER.addHandler(_HANDLER)
 
 
 class OVSBridgeInfo(TypedDict, total=False):
@@ -149,7 +149,7 @@ def add_iface_to_container(container_name: str, info: OVSInterfaceInfo) -> None:
             # If interface exists and OVS link is present, return
             return
 
-        logging.info("\n###################Captured Logs######################")
+        logging.info("###################Captured Logs######################")
         logging.info("Orchestrator must have restarted!!")
         logging.info("Removing iface %s from container: %s", iface, container_name)
         subprocess.run(
@@ -158,7 +158,7 @@ def add_iface_to_container(container_name: str, info: OVSInterfaceInfo) -> None:
             capture_output=False,
         )
     else:
-        logging.info("\n###################Captured Logs######################")
+        logging.info("###################Captured Logs######################")
         logging.info("Container: %s was missing interface %s!!", iface, container_name)
 
         # del the OVS mapped port
