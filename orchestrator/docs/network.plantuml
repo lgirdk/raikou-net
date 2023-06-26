@@ -1,0 +1,18 @@
+@startuml "Sample Network Topology"
+nwdiag {
+
+  network cpe_lan {
+      address = "192.168.0.0/24"
+
+      board [address = "192.168.0.1"];
+      lan [address = "192.168.0.10"];
+  }
+
+  network cpe_wan{
+      address = "10.1.1.0/24";
+      board [address = "10.1.1.10, trunk=131,121,117"];
+      router [address = "10.1.1.1 access_port=131, 10.1.2.1 access_port=121, 10.1.13.1 access_port=117", shape=database];
+
+  }
+}
+@enduml

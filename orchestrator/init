@@ -1,10 +1,28 @@
 #!/bin/bash -xe
 
+
+if [ ! -f "/root/config.json" ]; then
+    echo "Cannot run orchestrator without a CONFIG file!"
+    echo "Please mount a config file at /root/config.json !!"
+    exit 1
+fi
+
 # need to initialize and clean ovs modules
 # at least once before running in supervisord
 /usr/share/openvswitch/scripts/ovs-ctl start --system-id=random --ovsdb-server-options='--remote=ptcp:6640'
 /usr/share/openvswitch/scripts/ovs-ctl force-reload-kmod
 /usr/share/openvswitch/scripts/ovs-ctl stop
+
+# Initializing a JSON file as db for OVS to maintain IP range values
+echo "{}" > /tmp/db.json
+
+# Clean all OVS create VETH pairs before creating new ones
+# Since the OVS module is reloaded the DB is clean.
+for iface in $(ip -o link show type veth | cut -d" " -f2 | cut -d"@" -f1); do
+    if [[ "${iface: -2}" == "_c" ]]; then
+        ip link del $iface || true
+    fi
+done
 
 if [ $# -gt 0 ]; then
     /usr/bin/supervisord -c /etc/supervisord.conf

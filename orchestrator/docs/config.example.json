@@ -1,0 +1,76 @@
+{
+    "bridge": {
+        "bng-to-uplink1": {},
+        "bng-to-uplink2": {},
+        "cpe-to-bng": {},
+        "lan-to-cpe": {}
+    },
+    "container": {
+        "bng": [
+            {
+                "bridge": "cpe-to-bng",
+                "iface": "vl_eth0",
+                "vlan": "100"
+            },
+            {
+                "bridge": "cpe-to-bng",
+                "iface": "vl_eth1",
+                "vlan": "200"
+            },
+            {
+                "bridge": "cpe-to-bng",
+                "iface": "vl_eth2",
+                "vlan": "300"
+            },
+            {
+                "bridge": "bng-to-uplink1",
+                "iface": "eth1"
+            },
+            {
+                "bridge": "bng-to-uplink2",
+                "iface": "aux0"
+            }
+        ],
+        "board": [
+            {
+                "bridge": "lan-to-cpe",
+                "iface": "eth1"
+            },
+            {
+                "bridge": "cpe-to-bng",
+                "iface": "eth0",
+                "trunk": "131,121,117"
+            }
+        ],
+        "lan": [
+            {
+                "bridge": "lan-to-cpe",
+                "iface": "eth1"
+            }
+        ],
+        "wan": [
+            {
+                "bridge": "bng-to-uplink1",
+                "gateway": "172.25.1.1",
+                "gateway6": "2001:dead:beef:2::1",
+                "iface": "eth1",
+                "ip6address": "2001:dead:beef:2::101/64",
+                "ipaddress": "172.25.1.101/24"
+            }
+        ]
+    },
+    "vlan_translations": [
+        {
+            "map": "131:100",
+            "on": "cpe-to-bng"
+        },
+        {
+            "map": "121:200",
+            "on": "cpe-to-bng"
+        },
+        {
+            "map": "117:300",
+            "on": "cpe-to-bng"
+        }
+    ]
+}
