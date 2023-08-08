@@ -154,12 +154,23 @@ def _add_iface_to_bridge(bridge_name: str, parent_info: OVSParentInfo) -> None:
     :type bridge_name: str
     :param parent_info: The OVS Parent details.
     :type parent_info: OVSParentInfo
+    :raises ValueError: If more than usb-parent exist for provided ID.
     """
     db_cache = _get_db().get(bridge_name, {})
 
     if (parent := parent_info.get("iface")) is None:
         _LOGGER.debug("Invalid Entry: %s \nSkipping ..", str(parent_info))
         return
+
+    if "usb:" in parent:
+        usb_port = parent.split(":")[-1]
+        devs = _run_command("ls -l /sys/class/net", check=False)
+        usb_info = [dev for dev in devs.stdout.splitlines() if usb_port in dev]
+        if len(usb_info) > 1:
+            raise ValueError(
+                f"Identified more than one interface for usb bus: {usb_port}"
+            )
+        parent = usb_info[0].split()[8]
 
     parent_cache = db_cache.setdefault(parent, {})
     _LOGGER.debug("Trying to bring up parent %s for OVS bridge %s", parent, bridge_name)
