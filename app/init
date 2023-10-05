@@ -1,6 +1,5 @@
 #!/bin/bash -xe
 
-
 if [ ! -f "/root/config.json" ]; then
     echo "Cannot run orchestrator without a CONFIG file!"
     echo "Please mount a config file at /root/config.json !!"

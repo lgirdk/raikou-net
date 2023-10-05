@@ -1,7 +1,11 @@
-# OVS Orchestration
+# Raikou-Net (雷光ネット)
+
+Raikou-Net is a Docker container designed to orchestrate networking between
+containers on the same host system using Open vSwitch (OVS).
 
 It runs as a Docker-in-Docker derived image with privileged mode and leverages
 the host network to create OVS bridges instead of default docker bridges.
+
 
 ## Benefits of Using Open vSwitch (OVS) for Docker Networking
 
@@ -36,6 +40,14 @@ To learn more about Docker networking with OVS and how to utilize it
 effectively, refer to the documentation on
 [Docker Networking with Open vSwitch](https://ovs.readthedocs.io/en/latest/howto/docker.html).
 
+
+## Features
+
+- Creation of veth pairs and attachment of OVS bridges to containers
+- Setting VLAN trunk/access port on container designated OVS interfaces
+- Support for IPv6 address assignment
+- Managing external IDs for VLAN translation
+
 ## Prerequisites
 
 Before deploying the OVS Orchestrator, ensure that you have the following prerequisites:
@@ -62,44 +74,43 @@ To install docker engine and compose plugin, please follow the below link: <br>
 
 To deploy the OVS Orchestrator, follow these steps:
 
-1. Clone the docker-recipes repository.
+1. Clone the Raikou-Net repository.
 
 2. Prepare the `config.json` file with the necessary OVS configuration.
-Ensure it is placed in the same directory as the docker-recipes/orchestrator
-files.
+Ensure it is placed in the same directory as the Raikou-Net files.
 For syntax details, please refer to the following page:
-[OVS Configuration Syntax](./docs/CONFIG.README.md)
+[Raikou-Net OVS Configuration Syntax](./docs/README_CONFIG.md)
 
-3. Update the `docker-compose.yml` file with the desired container dependencies and configuration.
+3. Create a `docker-compose.yml` file with the desired container dependencies and configuration.
 
     ```yaml
     version: "3.9"
     services:
-      ovs:
-        build:
-        context: .
-        dockerfile: Dockerfile
-        container_name: ovs
-        volumes:
-            - /lib/modules:/lib/modules
-            - /var/run/docker.sock:/var/run/docker.sock
-            - ./config.json:/root/config.json
-        privileged: true
-        pid: "host"
-        network_mode: "host"
-        hostname: "orchestrator"
-        depends_on:
-            - bng
-            - lan
-            - board
+        raikou:
+            build:
+                context: .
+                dockerfile: Dockerfile
+            container_name: raikou-net
+            volumes:
+                - /lib/modules:/lib/modules
+                - /var/run/docker.sock:/var/run/docker.sock
+                - ./config.json:/root/config.json
+            privileged: true
+            pid: "host"
+            network_mode: "host"
+            hostname: "orchestrator"
+            depends_on:
+                - container1
+                - container2
+                - container3
     ```
 
    - Adjust the `build` section if you have customized the Dockerfile name
    or location.
    - Update the `volumes` section to map the necessary directories and files,
    including the `config.json` file.
-   - Modify the `depends_on` section to include the containers that the
-   orchestrator depends on.
+   - Modify the `depends_on` section to include the containers that
+   raikou should handle with OVS.
 
 
 4. Build the Docker image using the following command:
@@ -121,6 +132,8 @@ For syntax details, please refer to the following page:
 
 6. Verify that the OVS Orchestrator container is running by checking the
 container logs or running `docker ps`.
+
+
 
 ## How does the OVS configuration work?
 
@@ -198,10 +211,10 @@ or in trunk mode using ```trunk```.
                 "trunk": "131,121,117"
             }
         ],
-        "bng": [
+        "router": [
             {
                 "bridge": "cpe-wan",
-                "iface": "vl_eth0",
+                "iface": "eth0",
                 "vlan": "121"
             },
             ...
@@ -216,7 +229,11 @@ If we want to statically assing IP addresses to a container port.
 {
     "bridge": {
         "cpe-wan": {
-            "parent": "eno3"
+            "parents": [
+                {
+                    "iface": "eno3"
+                }
+            ]
         }
     },
     "container": {
@@ -234,12 +251,23 @@ If we want to statically assing IP addresses to a container port.
 }
 ```
 
-> Note: ```parent``` will allow an OVS bridge to get connected to an actual
+> Note: ```parents``` will allow an OVS bridge to get connected to an actual
 > physical interface on the host machine
-
 
 
 #### Step 3. Restart the docker-compose orchestrator service
 ```bash
 docker compose restart
 ```
+
+## Contributing
+
+Contributions to the Raikou-Net project are welcome!
+If you find any issues or have suggestions for improvement,
+please open an issue or submit a pull request.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
+
+---
