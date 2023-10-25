@@ -1,0 +1,125 @@
+#!/bin/sh
+
+[ -z "$1" ] && echo "Error: should be called from udhcpc" && exit 1
+
+# return 0 if root is mounted on a network filesystem
+root_is_nfs() {
+    sed -n 's/^[^ ]* \([^ ]*\) \([^ ]*\) .*$/\1 \2/p' /proc/mounts |
+    grep -q "^/ \(nfs\|smbfs\|ncp\|coda\)$"
+}
+
+BROADCAST="broadcast +"
+
+[ -n "$broadcast" ] && BROADCAST="broadcast $broadcast"
+
+hex2string () {
+    i=0
+    while [ $i -lt ${#1} ]; do
+        echo -en "\x"${1:$i:2}
+        let "i += 2"
+    done
+}
+
+ip2int()
+{
+    { IFS=. read a b c d; } <<< $1
+    echo $(((((((a << 8) | b) << 8) | c) << 8) | d))
+}
+
+int2ip()
+{
+    ui32=$1; shift
+    for n in 1 2 3 4; do
+        ip_addr=$((ui32 & 0xff))${ip_addr:+.}$ip_addr
+        ui32=$((ui32 >> 8))
+    done
+    echo $ip_addr
+}
+
+network()
+{
+    addr=$(ip2int $1); shift
+    mask=$((0xffffffff << (32 - $1))); shift
+    int2ip $((addr & mask))
+}
+
+if [ "$interface" == "mg0" ]; then
+    table=100
+else
+    table=200
+fi
+
+case "$1" in
+    deconfig)
+        if ! root_is_nfs ; then
+            /sbin/ip -4 addr flush dev $interface
+            /sbin/ip link set dev $interface up
+        fi
+        IP_ADDR=`sysevent get ipv4_${interface}_ipaddr`
+        if [ ! -z "$IP_ADDR" ]; then
+                /sbin/ip rule del from ${IP_ADDR} table $table
+        fi
+        sysevent set ipv4_${interface}_ipaddr
+        sysevent set ipv4_${interface}_dns_0
+        sysevent set ipv4_${interface}_dns_1
+        sysevent set ipv4_${interface}_state down
+        ;;
+
+    renew|bound)
+        IP_ADDR=`sysevent get ipv4_${interface}_ipaddr`
+        if [ ! -z "$IP_ADDR" ]; then
+            /sbin/ip rule del from ${IP_ADDR} table $table
+        fi
+        /sbin/ip addr add dev $interface local $ip/$mask $BROADCAST noprefixroute
+        /sbin/ip rule add from $ip table $table
+        network_addr=$(network $ip $mask)
+        /sbin/ip route add $network_addr/$mask dev $interface proto kernel scope link src $ip table $table
+        sysevent set ipv4_${interface}_ipaddr ${ip}
+
+        if [ -n "$router" ] ; then
+            if ! root_is_nfs ; then
+                while /sbin/ip route del default dev $interface table $table 2>/dev/null ; do
+                    :
+                done
+            fi
+
+            metric=0
+            for i in $router ; do
+                /sbin/ip route add default via $i metric $metric dev $interface table $table
+                metric=$(($metric + 1))
+            done
+
+            sysevent set ipv4_${interface}_ipaddr ${ip}
+            i=0; for serv in $dns ; do
+                sysevent set ipv4_${interface}_dns_${i} ${serv}
+                ((++i))
+            done
+            sysevent set ipv4_${interface}_state up
+        fi
+        if [ "$interface" == "mg0" ]; then
+            if [ -n "$opt43" ]; then
+                while [ -n "$opt43" ] ; do
+                    option_code=$(echo $opt43 | awk '{print substr($0,0,2)}')
+                    length=$(echo $opt43 | awk '{print substr($0,3,2)}')
+                    dec_length=$(( 16#$length ))
+                    dec_length=$((dec_length*2))
+
+                    if [ "$option_code" = "01" ] ; then
+                        acs_url=$(echo $opt43 | awk '{print substr($0,5,CUR)}' CUR=$dec_length)
+                        ascii_url=$(hex2string $acs_url)
+                        sysevent set DHCPv4_ACS_URL "$ascii_url"
+                        echo "DHCPv4_ACS_URL $ascii_url" >> /tmp/dhcp_acs_url
+                    elif [ "$option_code" = "02" ] ; then
+                        prov_code=$(echo $opt43 | awk '{print substr($0,5,CUR)}' CUR=$dec_length)
+                        ascii_prov_code=$(hex2string $prov_code)
+                        syscfg set tr_prov_code "$ascii_prov_code"
+                        syscfg commit
+                    fi
+                    opt43=$(echo $opt43 | awk '{print substr($0,CUR)}' CUR=$((dec_length+5)))
+                done
+            fi
+        fi
+        ;;
+esac
+
+exit 0

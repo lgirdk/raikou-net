@@ -1,0 +1,65 @@
+#!/usr/bin/env python3
+
+import os, sys, json
+
+#sysevent get ipv4_mg0_ipaddr
+#sysevent set ipv4_mg0_ipaddr
+#sysevent set ipv4_mg0_ipaddr 10.10.1.1
+
+def main():
+
+    config = {}
+
+    fn = '/var/tmp/sysevent.json'
+
+    #print(sys.argv)
+
+    if os.path.isfile(fn):
+        with open(fn, 'r') as fp:
+            config = json.loads(fp.read())
+
+    if len(sys.argv) == 1:
+        print("no arguments..")
+        print(json.dumps(config, indent = 4))
+
+    elif sys.argv[1] == 'set':
+        if len(sys.argv) == 4:
+            config[sys.argv[2]] = sys.argv[3]
+        else:
+            if sys.argv[2] in config:
+                pass
+            else:
+                config[sys.argv[2]] = ""
+
+    elif sys.argv[1] == 'batchset':
+        for n in range(2, len(sys.argv)):
+            k = sys.argv[n].split('=')[0]
+            if len(sys.argv[n].split('=')) == 2:
+                v = sys.argv[n].split('=')[1]
+            else:
+                v = ""
+
+            if v != "":
+                config[k] = v
+            else:
+                if k in config:
+                    pass
+                else:
+                    config[k] = ""
+
+    elif sys.argv[1] == 'get':
+        if sys.argv[2] in config:
+            print(config[sys.argv[2]])
+        else:
+            print()
+
+    else:
+        print("no arguments..")
+        print(config)
+
+    with open(fn, 'w+') as fp:
+        fp.write(json.dumps(config))
+
+
+if __name__ == '__main__':
+    main()

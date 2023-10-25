@@ -1,0 +1,43 @@
+#!/usr/bin/env python3
+
+#dmcli eRT retv Device.DeviceInfo.SerialNumber
+
+import os, sys, json
+
+def main():
+
+    config = {
+        "Device.DeviceInfo.SerialNumber" : "YAAD1256A042",
+        "Device.DeviceInfo.HardwareVersion" : "1.0",
+        "Device.DeviceInfo.SoftwareVersion" : "2.37.0-2210.1-LGI-INTERNAL",
+        "Device.DeviceInfo.X_CISCO_COM_BootloaderVersion" : "",
+        "Device.DeviceInfo.ManufacturerOUI" : "38A659",
+        "Device.DeviceInfo.ModelNumber" : "Fast5685-LG",
+        "Device.DeviceInfo.Manufacturer" : "Sagemcom",
+        "Device.DeviceInfo.ProductClass" : "MERCV3",
+        "Device.DeviceInfo.X_LGI-COM_SerialNumber" : "YAAD1256A042"
+    }
+
+    fn = '/var/tmp/dmcli.json'
+
+    if os.path.isfile(fn):
+        with open(fn, 'r') as fp:
+            config = json.loads(fp.read())
+
+    if len(sys.argv) == 1:
+        print("no arguments..")
+        print(json.dumps(config, indent = 4))
+
+    elif sys.argv[2] == 'retv':
+        print(config[sys.argv[3]])
+
+    else:
+        print("no arguments..")
+        print(config)
+
+    with open(fn, 'w+') as fp:
+        fp.write(json.dumps(config))
+
+
+if __name__ == '__main__':
+    main()

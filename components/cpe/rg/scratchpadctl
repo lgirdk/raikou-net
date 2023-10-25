@@ -1,0 +1,32 @@
+#!/usr/bin/env python3
+
+import os, sys, json
+
+#scratchpadctl dump RdpaWanType
+
+def main():
+
+    config = {"RdpaWanType" : "GBE"}
+    fn = '/var/tmp/scratchpadctl.json'
+
+    if os.path.isfile(fn):
+        with open(fn, 'r') as fp:
+            config = json.loads(fp.read())
+
+    if len(sys.argv) == 1:
+        print("no arguments..")
+        print(config)
+
+    elif sys.argv[1] == 'dump':
+        print(config[sys.argv[2]])
+
+    else:
+        print("no arguments..")
+        print(config)
+
+    with open(fn, 'w+') as fp:
+        fp.write(json.dumps(config))
+
+
+if __name__ == '__main__':
+    main()

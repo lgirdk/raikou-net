@@ -1,0 +1,43 @@
+#!/usr/bin/env python3
+
+import os, sys, json
+
+
+def main():
+    """Sysconfig hardcoded values."""
+    config = {
+        "management_wan_enabled": "1",
+        "management_vlan": os.environ["MGMT_VLAN"],
+        "management_skb2vlan_priority_map": "0:3 3:3",
+        "voip_wan_enabled": "1",
+        "voip_vlan": os.environ["VOICE_VLAN"],
+        "voip_skb2vlan_priority_map": "0:5 1:5 2:5 3:5 4:5 5:5 6:5 7:5",
+    }
+
+    syscfg_file_name = "/var/tmp/syscfg.json"
+
+    # print(sys.argv)
+
+    if os.path.isfile(syscfg_file_name):
+        with open(syscfg_file_name, "r", encoding="utf-8") as fp:
+            config = json.loads(fp.read())
+
+    if len(sys.argv) == 1:
+        print("no arguments..")
+        print(json.dumps(config, indent=4))
+
+    elif sys.argv[1] == "set":
+        config[sys.argv[2]] = sys.argv[3]
+
+    elif sys.argv[1] == "get":
+        if sys.argv[2] in config:
+            print(config[sys.argv[2]])
+        else:
+            print()
+
+    with open(syscfg_file_name, "w+", encoding="utf-8") as fp:
+        fp.write(json.dumps(config))
+
+
+if __name__ == "__main__":
+    main()

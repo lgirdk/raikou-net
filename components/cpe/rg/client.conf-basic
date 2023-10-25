@@ -1,0 +1,26 @@
+log-mode full
+reconfigure-accept 1
+downlink-prefix-ifaces "brlan0"
+script "/etc/dibbler/client-notify.sh"
+inactive-mode
+
+iface erouter0 {
+        ia
+        {
+                address
+        }
+        pd
+        {
+                prefix ::/0
+                {
+                        preferred-lifetime 0
+                        valid-lifetime 0
+                }
+        }
+
+        option dns-server
+        option domain
+        option aftr
+        option 0082 hex
+        option 0056 hex
+}

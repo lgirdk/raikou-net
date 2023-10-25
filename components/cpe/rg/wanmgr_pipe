@@ -1,0 +1,37 @@
+#!/bin/sh
+
+if [ $# -ne 1 ]; then
+    echo "Usage: $0 [pipe]"
+    exit 1
+fi
+
+mkfifo $1
+
+trap "rm -f $1" EXIT   # clean up the named pipe on exit
+
+while true; do   # infinite loop
+    read line < $1   # read input from the pipe
+
+    ##echo "dibbler-client add ${ADDR1} 1 ${ADDR1T1} ${ADDR1T2} ${ADDR1PREF} ${ADDR1VALID} ${PREFIX1} ${PREFIX1LEN} 1 ${PREFIX1T1} ${PREFIX1T2} ${PREFIX1PREF} ${PREFIX1VALID} " >> /tmp/ccsp_common_fifo
+    ##
+    ##        dibbler-client add 2001:db9:0:131::254 1 2147483647 3435973836 4294967295 4294967295 3001:db9:0:f000:: 56 1 13500 21600 27000 43200
+
+    echo $line >> /tmp/e.e
+
+    # set the IFS variable to a space character
+    IFS=' '
+    # read values from the line into an array
+    read -ra values <<< "$line"
+
+    # print the first and last item in the array
+    echo "First item: ${values[0]}"
+    echo "Last item: ${values[-1]}"
+
+    #dibbler will set the ipv6 address
+    #ip -6 address add ${values[2]} dev erouter0
+
+    if [ -n "${values[0]}" ]; then
+        ip -6 route add default dev erouter0
+    fi
+
+done
