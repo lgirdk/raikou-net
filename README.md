@@ -1,5 +1,19 @@
 # Raikou-Net (雷光ネット)
 
+<p align=center>
+    <img src="docs/images/raikou-banner.jpg" width="500"/> <br>
+    <img alt="GitHub" src="https://img.shields.io/github/license/lgirdk/raikou-net">
+    <img alt="GitHub commit activity (branch)"
+    src="https://img.shields.io/github/commit-activity/t/lgirdk/raikou-net">
+    <img alt="GitHub last commit (branch)"
+    src="https://img.shields.io/github/last-commit/lgirdk/raikou-net">
+    <img alt="Python Version" src="https://img.shields.io/badge/python-3.11+-blue">
+    <a href="https://github.com/psf/black"><img alt="Code style: black"
+    src="https://img.shields.io/badge/code%20style-black-000000.svg"></a>
+    <a href="https://github.com/astral-sh/ruff"><img alt="Code style: black"
+    src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json"></a>
+</p> <hr>
+
 Raikou-Net is a Docker container designed to orchestrate networking between
 containers on the same host system using Open vSwitch (OVS).
 
