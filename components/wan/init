@@ -1,0 +1,34 @@
+#!/bin/bash
+if [ $LEGACY == "no" ]; then
+    isolate_docker_iface
+fi
+
+service tftpd-hpa start;
+service lighttpd start;
+
+# Loading default conf values assuming interface eth1 will be brought up
+cat > /etc/dnsmasq.conf << EOF
+local-ttl=60
+no-resolv
+no-hosts
+local=/boardfarm.com/
+server=$DNS_UPSTREAM
+interface=eth1
+addn-hosts=/etc/dnsmasq.hosts
+EOF
+
+# Loading default host values based on DHCP configuration
+cat > /etc/dnsmasq.hosts << EOF
+4003:1::1 aftr.boardfarm.com
+172.25.1.101 wan.boardfarm.com
+2001:dead:beef:2::101 wan.boardfarm.com
+2001:dead:beef:2::40 acs_server.boardfarm.com
+172.25.1.40 acs_server.boardfarm.com
+172.25.1.101 ipv4wan.boardfarm.com
+2001:dead:beef:2::101 ipv6wan.boardfarm.com
+2001:dead:beef:2::101 ipv6.google.com
+172.25.1.101 www.google.com
+EOF
+
+service dnsmasq start;
+/usr/sbin/sshd -D

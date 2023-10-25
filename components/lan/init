@@ -1,0 +1,10 @@
+#!/bin/bash
+exit_flag=false
+
+if [ $LEGACY == "no" ]; then
+    isolate_docker_iface
+fi
+
+service tftpd-hpa start
+service lighttpd start
+/usr/sbin/sshd -D
