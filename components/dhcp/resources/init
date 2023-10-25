@@ -1,0 +1,29 @@
+#! /bin/bash -xe
+
+# Ensure isolation of eth0 interface.
+if [ $LEGACY == "no" ]; then
+    isolate_docker_iface
+fi
+
+# Mandatory wait
+# The container requires an eth1 interface to run the DHCP server configuration
+# Will be stuck in an infinite loop if eth1 interface is not present.
+while [ -z $(ls /sys/class/net | grep -w eth1) ]; do
+    echo "WAN interface "eth1" not found"
+    sleep 5
+done
+ip link set eth1 up
+
+keactrl start
+
+# Run FAST API only in ENV is set
+if [ $FAST_API == "yes" ]; then
+    python3 /root/kea_api.py &
+fi
+
+# By default runs SSH server
+if [ $# -gt 0 ]; then
+    exec "$@"
+else
+    /usr/sbin/sshd -D
+fi
