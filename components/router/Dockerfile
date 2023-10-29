@@ -109,4 +109,4 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     chmod +x init && \
     echo "root:bigfoot1" | chpasswd
 
-ENTRYPOINT [ "init" ]
+ENTRYPOINT [ "/root/init" ]
