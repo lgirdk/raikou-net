@@ -106,6 +106,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     mv /root/smcroute.conf /etc/smcroute.conf && \
     mv /root/staticd.conf /etc/frr/staticd.conf && \
     chown -R frr /etc/frr && \
+    chmod +x init && \
     echo "root:bigfoot1" | chpasswd
 
 ENTRYPOINT [ "init" ]
