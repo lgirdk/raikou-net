@@ -1,4 +1,4 @@
-FROM ssh:1.8.4p1
+FROM ssh:1.9.2p1
 
 LABEL maintainer="ktewari@libertyglobal.com"
 LABEL version="frr_9.0"
