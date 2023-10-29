@@ -89,7 +89,7 @@ echo "zebra_options=\"  -A 127.0.0.1 -s 90000000 -f /etc/frr/zebra.conf\"" >> /e
 
 
 echo "Starting daemons."
-for svc in bgpd isisd ospfd ospf6d ripd ripngd pimd pim6d staticd; do
+for svc in bgpd isisd ospfd ospf6d ripd ripngd pimd pim6d; do
     if [ -f /etc/frr/${svc}.conf ]; then
         echo "Starting ${svc}."
         sed -i s"/${svc}=no/${svc}=yes/" /etc/frr/daemons
@@ -102,6 +102,11 @@ for svc in bgpd isisd ospfd ospf6d ripd ripngd pimd pim6d staticd; do
         fi
     fi
 done
+
+# New changes in FRR 9.0+
+if [ -f /etc/frr/staticd.conf ]; then
+    echo "staticd=yes" >> /etc/frr/daemons
+fi
 
 service frr start
 sleep 5
