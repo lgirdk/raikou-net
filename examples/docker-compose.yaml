@@ -1,0 +1,78 @@
+---
+version: '3.9'
+services:
+    router:
+        container_name: router
+        image: 10.64.38.13:5000/raikou-router
+        ports:
+            - 4000:22
+        environment:
+            DHCP_RELAY: 172.25.1.20,2001:dead:beef:2::20
+        privileged: true
+        hostname: router
+        depends_on:
+            - ssh_service
+
+    wan:
+        container_name: wan
+        image: 10.64.38.13:5000/raikou-wan
+        ports:
+            - 4001:22
+        environment:
+            DNS_UPSTREAM: 172.30.180.2
+            LEGACY: no # yamllint disable-line rule:truthy
+        privileged: true
+        hostname: wan
+        depends_on:
+            - ssh_service
+
+    lan:
+        container_name: lan
+        image: 10.64.38.13:5000/raikou-lan
+        ports:
+            - 4002:22
+        environment:
+            LEGACY: no # yamllint disable-line rule:truthy
+        privileged: true
+        hostname: lan
+        depends_on:
+            - ssh_service
+
+    dhcp:
+        container_name: dhcp
+        image: 10.64.38.13:5000/raikou-dhcp
+        ports:
+            - 4003:22
+        environment:
+            LEGACY: no # yamllint disable-line rule:truthy
+        privileged: true
+        hostname: dhcp
+        depends_on:
+            - ssh_service
+
+    raikou-net:
+        container_name: orchestrator
+        image: 10.64.38.13:5000/raikou-net
+        volumes:
+            - /lib/modules:/lib/modules
+            - /var/run/docker.sock:/var/run/docker.sock
+            - ./config.json:/root/config.json
+        privileged: true
+        pid: host
+        network_mode: host
+        hostname: orchestrator
+        depends_on:
+            - router
+            - wan
+            - lan
+            - dhcp
+
+    ssh_service:
+        image: 10.64.38.13:5000/raikou-ssh
+
+networks:
+    default:
+        ipam:
+            config:
+                - subnet: 192.168.55.0/24
+                  gateway: 192.168.55.1
