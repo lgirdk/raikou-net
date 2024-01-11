@@ -11,7 +11,7 @@ WORKDIR /root
 COPY ./resources/container_utils-1.1.1-py3-none-any.whl container_utils-1.1.1-py3-none-any.whl
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl=7.88.1-10+deb12u4 \
+    curl=7.88.1-10+deb12u5 \
     dante-server=1.4.2+dfsg-7+b8 \
     dnsutils=1:9.18.19-1~deb12u1 \
     ftp=20210827-4 \
@@ -33,7 +33,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tcpdump=4.99.3-1 \
     tftpd-hpa=5.2+20150808-1.4 \
     traceroute=1:2.1.2-1 \
-    tshark=4.0.6-1~deb12u1 \
+    tshark=4.0.11-1~deb12u1 \
     miniupnpc=2.2.4-1+b1 \
     webfs=1.21+ds1-12+b1 \
     wget=1.21.3-1+b2 \
