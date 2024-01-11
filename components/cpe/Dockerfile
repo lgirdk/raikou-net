@@ -6,8 +6,9 @@ COPY wanmgr_ipc wanmgr_ipc
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+
 # hadolint ignore=DL3008
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get --allow-releaseinfo-change update && apt-get install -y --no-install-recommends \
     build-essential \
     nanomsg-utils \
     libnanomsg-dev
@@ -53,7 +54,7 @@ ENV MGMT_VLAN 121
 ENV VOICE_VLAN 117
 
 # hadolint ignore=DL3008,DL4005
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get --allow-releaseinfo-change update && apt-get install -y --no-install-recommends \
     procps \
     tcpdump \
     iptables \
