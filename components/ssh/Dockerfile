@@ -26,7 +26,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN echo "root:bigfoot1" | chpasswd
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    openssh-server=1:9.2p1-2+deb12u1 \
+    openssh-server=1:9.2p1-2+deb12u2 \
     iproute2=6.1.0-3 \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir /var/run/sshd \
