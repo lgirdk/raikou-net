@@ -8,7 +8,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # Install essential packages
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    curl=7.88.1-10+deb12u4 \
+    curl=7.88.1-10+deb12u5 \
     iproute2=6.1.0-3 \
     iptables=1.8.9-2 \
     iputils-ping=3:20221126-1 \
@@ -18,7 +18,7 @@ RUN apt-get update && \
     psmisc=23.6-1 \
     tcpdump=4.99.3-1 \
     traceroute=1:2.1.2-1 \
-    tshark=4.0.6-1~deb12u1 && \
+    tshark=4.0.11-1~deb12u1 && \
     mkdir -p /var/log/kea && \
     rm -rf /var/lib/apt/lists/* && \
     \
