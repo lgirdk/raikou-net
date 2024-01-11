@@ -8,10 +8,10 @@ WORKDIR /root
 COPY ./app app
 
 RUN apk add -u --no-cache \
-    openvswitch=2.17.6-r0 \
+    openvswitch=2.17.8-r0 \
     bash=5.2.15-r5 \
     openrc=0.48-r0 \
-    openssh=9.3_p2-r0 \
+    openssh=9.3_p2-r1 \
     uuidgen=2.38.1-r8 \
     iproute2=6.3.0-r0 \
     supervisor=4.2.5-r2 && \
