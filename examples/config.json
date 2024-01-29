@@ -56,6 +56,30 @@
                 "ip6address": "2001:dead:beef:2::100/64",
                 "ipaddress": "172.25.1.100/24"
             }
+        ],
+        "acs": [
+            {
+                "bridge": "rtr-uplink1",
+                "gateway": "172.25.1.1",
+                "gateway6": "2001:dead:beef:2::1",
+                "iface": "eth1",
+                "ip6address": "2001:dead:beef:2::40/64",
+                "ipaddress": "172.25.1.40/24"
+            },
+            {
+                "bridge": "rtr-uplink2",
+                "gateway": "172.25.2.1",
+                "gateway6": "2001:dead:beef:3::1",
+                "iface": "eth2",
+                "ip6address": "2001:dead:beef:3::40/64",
+                "ipaddress": "172.25.2.40/24"
+            }
+        ],
+        "mongo": [
+            {
+                "bridge": "rtr-uplink1",
+                "iface": "eth1"
+            }
         ]
     },
     "vlan_translations": []

@@ -50,6 +50,49 @@ services:
         depends_on:
             - ssh_service
 
+    mongo:
+        image: 10.64.38.13:5000/mongo:4.4
+        restart: always
+        privileged: true
+        container_name: mongo
+        hostname: mongo
+        environment:
+        - MONGO_INITDB_ROOT_USERNAME=admin
+        - MONGO_INITDB_ROOT_PASSWORD=bigfoot1
+        - MONGO_DATA_DIR=/data/db
+        - MONGO_LOG_DIR=/var/log/mongodb
+        volumes:
+        - data_db:/data/db
+        - data_configdb:/data/configdb
+        ports:
+        - 27017:27017
+
+    acs:
+        depends_on:
+        - mongo
+        image: 10.64.38.13:5000/raikou-acs
+        restart: always
+        container_name: acs
+        hostname: acs
+        environment:
+        - GENIEACS_UI_JWT_SECRET=bigfoot1
+        - GENIEACS_CWMP_ACCESS_LOG_FILE=/var/log/genieacs/genieacs-cwmp-access.log
+        - GENIEACS_NBI_ACCESS_LOG_FILE=/var/log/genieacs/genieacs-nbi-access.log
+        - GENIEACS_FS_ACCESS_LOG_FILE=/var/log/genieacs/genieacs-fs-access.log
+        - GENIEACS_UI_ACCESS_LOG_FILE=/var/log/genieacs/genieacs-ui-access.log
+        - GENIEACS_DEBUG_FILE=/var/log/genieacs/genieacs-debug.yaml
+        - GENIEACS_EXT_DIR=/opt/genieacs/ext
+        - GENIEACS_MONGODB_CONNECTION_URL=mongodb://admin:bigfoot1@mongo:27017
+        privileged: true
+        ports:
+        - 4503:22
+        - 7547:7547
+        - 7557:7557
+        - 7567:7567
+        - 3000:3000
+        volumes:
+        - opt_volume:/opt
+
     raikou-net:
         container_name: orchestrator
         image: 10.64.38.13:5000/raikou-net
@@ -66,6 +109,7 @@ services:
             - wan
             - lan
             - dhcp
+            - acs
 
     ssh_service:
         image: 10.64.38.13:5000/raikou-ssh
