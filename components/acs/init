@@ -1,0 +1,20 @@
+#!/bin/bash
+
+if [ "$LEGACY" == "no" ]; then
+    isolate_docker_iface
+fi
+
+sed -i 's/user=genieacs/user=root/g' /etc/supervisor/conf.d/supervisord.conf
+sed -i '/\[program:genieacs-cwmp\]/a user=genieacs' /etc/supervisor/conf.d/supervisord.conf
+sed -i '/\[program:genieacs-nbi\]/a user=genieacs' /etc/supervisor/conf.d/supervisord.conf
+sed -i '/\[program:genieacs-fs\]/a user=genieacs' /etc/supervisor/conf.d/supervisord.conf
+sed -i '/\[program:genieacs-ui\]/a user=genieacs' /etc/supervisor/conf.d/supervisord.conf
+sed -i '/\[program:sshd\]/a user=root' /etc/supervisor/conf.d/supervisord.conf
+echo -e "\n[program:sshd]\ncommand=/usr/sbin/sshd -D\nautorestart=true\nuser=root" >>/etc/supervisor/conf.d/supervisord.conf
+
+if [ $# -gt 0 ]; then
+    /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
+    exec "$@"
+else
+    /usr/bin/supervisord -n -c /etc/supervisor/conf.d/supervisord.conf
+fi
