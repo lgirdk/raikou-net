@@ -1,0 +1,17 @@
+config interface 'lan'
+        option ifname 'eth0'
+        option type 'bridge'
+        option proto 'static'
+        option ipaddr '192.168.0.1'
+        option netmask '255.255.255.0'
+
+config interface 'wan'
+        option ifname 'eth1.117 eth1.121 eth1.131'
+        option type 'bridge'
+        option proto 'dhcp'
+
+config interface 'wan2'
+        option ifname 'aux0'
+        option proto 'static'
+        option ipaddr '172.25.2.60'
+        option netmask '255.255.255.0'
