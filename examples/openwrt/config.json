@@ -1,0 +1,104 @@
+{
+    "bridge": {
+        "router-to-uplink1": {},
+        "router-to-uplink2": {},
+        "cpe-to-router": {},
+        "lan-to-cpe": {}
+    },
+    "container": {
+        "openwrt": [
+            {
+                "bridge": "lan-to-cpe",
+                "iface": "eth0"
+            },
+            {
+                "bridge": "cpe-to-router",
+                "iface": "eth1",
+                "trunk": "131,121,117"
+            },
+            {
+                "bridge": "router-to-uplink2",
+                "iface": "aux0"
+            }
+        ],
+        "router": [
+            {
+                "bridge": "cpe-to-router",
+                "iface": "vl_eth0",
+                "vlan": "100"
+            },
+            {
+                "bridge": "cpe-to-router",
+                "iface": "vl_eth1",
+                "vlan": "200"
+            },
+            {
+                "bridge": "cpe-to-router",
+                "iface": "vl_eth2",
+                "vlan": "300"
+            },
+            {
+                "bridge": "router-to-uplink1",
+                "iface": "eth1"
+            },
+            {
+                "bridge": "router-to-uplink2",
+                "iface": "aux0"
+            }
+        ],
+        "dhcp": [
+            {
+                "bridge": "router-to-uplink1",
+                "gateway": "172.25.1.1",
+                "gateway6": "2001:dead:beef:2::1",
+                "iface": "eth1",
+                "ip6address": "2001:dead:beef:2::20/64",
+                "ipaddress": "172.25.1.20/24"
+            }
+        ],
+        "wan": [
+            {
+                "bridge": "router-to-uplink1",
+                "gateway": "172.25.1.1",
+                "gateway6": "2001:dead:beef:2::1",
+                "iface": "eth1",
+                "ip6address": "2001:dead:beef:2::2/64",
+                "ipaddress": "172.25.1.2/24"
+            },
+            {
+                "bridge": "router-to-uplink2",
+                "gateway": "172.25.2.1",
+                "gateway6": "2001:dead:beef:3::1",
+                "iface": "aux0",
+                "ip6address": "2001:dead:beef:3::2/64",
+                "ipaddress": "172.25.2.2/24"
+            }
+        ],
+        "lan1": [
+            {
+                "bridge": "lan-to-cpe",
+                "iface": "eth1"
+            }
+        ],
+        "lan2": [
+            {
+                "bridge": "lan-to-cpe",
+                "iface": "eth1"
+            }
+        ]
+    },
+    "vlan_translations": [
+        {
+            "map": "131:100",
+            "on": "cpe-to-router"
+        },
+        {
+            "map": "121:200",
+            "on": "cpe-to-router"
+        },
+        {
+            "map": "117:300",
+            "on": "cpe-to-router"
+        }
+    ]
+}
