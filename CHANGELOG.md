@@ -1,7 +1,10 @@
-## 0.1.0 (2023-10-26)
+## v1.0.0 (2024-01-29)
 
 ### Feat
 
+- **examples/docker-compose.yaml**: update examples with acs
+- **components/acs**: add acs example
+- **Dockerfile**: update openvswitch and openssh versions
 - **components**: prototype busybox cpe image
 - **components**: add a router image
 - **components**: add dhcp server image
@@ -15,6 +18,14 @@
 
 ### Fix
 
+- **lan/Dockerfile**: update curl and tshark versions
+- **dhcp/Dockerfile**: update curl and tshark versions
+- **components/cpe/Dockerfile**: modify apt-get command to allow release info changes
+- **ssh/Dockerfile**: update openssh-server version
+- **router**: fix staticd issues
+- **router**: fix executable path
+- **router**: fix init execution permissions
+- **router**: update pull version of ssh
 - **orchestrator**: fix logging variable names
 - **router**: update ethernet router config
 
