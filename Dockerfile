@@ -1,4 +1,4 @@
-FROM docker:24.0.6-dind-alpine3.18
+FROM docker:25.0.4-dind-alpine3.19
 
 LABEL maintainer="ktewari@libertyglobal.com"
 LABEL version="alpine3.18-dind-ovs_2.17"
@@ -8,13 +8,13 @@ WORKDIR /root
 COPY ./app app
 
 RUN apk add -u --no-cache \
-    openvswitch=2.17.8-r0 \
-    bash=5.2.15-r5 \
-    openrc=0.48-r0 \
-    openssh=9.3_p2-r1 \
-    uuidgen=2.38.1-r8 \
-    iproute2=6.3.0-r0 \
-    supervisor=4.2.5-r2 && \
+    openvswitch=2.17.9-r0 \
+    bash=5.2.21-r0 \
+    openrc=0.52.1-r2 \
+    openssh=9.6_p1-r0 \
+    uuidgen=2.39.3-r0 \
+    iproute2=6.6.0-r0 \
+    supervisor=4.2.5-r4 && \
     \
     # Configure SSH key
     /usr/bin/ssh-keygen -t rsa -b 4096 -N '' -f /etc/ssh/ssh_host_rsa_key && \
