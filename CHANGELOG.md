@@ -1,3 +1,14 @@
+## v1.1.0 (2024-03-17)
+
+### Feat
+
+- **components**: update dhcp and router to v1.1.0
+- **factory**: update to v25.0.4 alpine 3.19
+
+### Fix
+
+- **supervisor**: fix process kill error
+
 ## v1.0.0 (2024-01-29)
 
 ### Feat
