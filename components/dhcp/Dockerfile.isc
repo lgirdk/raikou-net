@@ -10,7 +10,7 @@ ENV DNS_UPSTREAM=8.8.8.8
 COPY ./resources.isc/init /root/init
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl=7.88.1-10+deb12u4 \
+    curl=7.88.1-10+deb12u5 \
     dante-server=1.4.2+dfsg-7+b8 \
     dnsmasq=2.89-1 \
     dnsutils=1:9.18.19-1~deb12u1 \

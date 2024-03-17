@@ -25,7 +25,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV DNS_UPSTREAM=8.8.8.8
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl=7.88.1-10+deb12u4 \
+    curl=7.88.1-10+deb12u5 \
     dante-server=1.4.2+dfsg-7+b8 \
     dnsmasq=2.89-1 \
     dnsutils=1:9.18.19-1~deb12u1 \
@@ -44,7 +44,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tcpdump=4.99.3-1 \
     tftpd-hpa=5.2+20150808-1.4 \
     traceroute=1:2.1.2-1 \
-    tshark=4.0.6-1~deb12u1 \
+    tshark=4.0.11-1~deb12u1 \
     vsftpd=3.0.3-13+b2 \
     wget=1.21.3-1+b2 \
     xinetd=1:2.3.15.3-1+b1 \

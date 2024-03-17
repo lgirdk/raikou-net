@@ -14,7 +14,7 @@ while [ -z $(ls /sys/class/net | grep -w eth1) ]; do
 done
 ip link set eth1 up
 
-service isc-dhcp-server start
+service isc-dhcp-server start || true
 
 # By default runs SSH server
 if [ $# -gt 0 ]; then

@@ -1,9 +1,9 @@
 # bind library build stage.
-FROM python:3.12.0-slim-bookworm AS build-stage
+FROM python:3.12.2-slim-bookworm AS build-stage
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential=12.9 \
-    wget=1.21.3-1+b2 \
+    wget=1.21.3-1+b1 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /root
@@ -17,7 +17,7 @@ RUN wget -q http://daniel-lange.com/software/bind.c -O bind.c \
 
 
 # Debian SSH server start from here.
-FROM python:3.12.0-slim-bookworm
+FROM python:3.12.2-slim-bookworm
 
 LABEL maintainer="ktewari@libertyglobal.com"
 LABEL version="1.9.2p1"

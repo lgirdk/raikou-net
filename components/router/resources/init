@@ -72,7 +72,8 @@ do
     echo "$PIMD_CONF" | sed "s|#IFACE|$IFACE|" >> /etc/frr/pimd.conf
 
     # Update RIP Conf
-    sed -i "s|! Add active RIP network|    network $IFACE\n! Add active RIP network|" /etc/frr/ripd.conf
+    RIPD_TMP=$(sed "s|! Add active RIP network|    network $IFACE\n! Add active RIP network|"  /etc/frr/ripd.conf)
+    echo $RIPD_TMP > /etc/frr/ripd.conf
     echo "$RIPD_CONF" | sed "s|#IFACE|$IFACE|" >> /etc/frr/ripd.conf
 
 done

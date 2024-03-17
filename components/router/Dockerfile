@@ -34,7 +34,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     automake=1:1.16.5-1.3 \
     flex=2.6.4-8.2 \
     bison=2:3.8.2+dfsg-1+b1 \
-    curl=7.88.1-10+deb12u4 \
+    curl=7.88.1-10+deb12u5 \
     ca-certificates=20230311 \
     gnupg=2.2.40-1.1 \
     lsb-release=12.0-1 \
@@ -49,14 +49,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     -a /etc/apt/sources.list.d/frr.list && \
     \
     apt-get update && apt-get install -y --no-install-recommends \
-    dnsutils=1:9.18.19-1~deb12u1 \
+    dnsutils=1:9.18.24-1 \
     iproute2=6.1.0-3 \
     iptables=1.8.9-2 \
     iputils-ping=3:20221126-1 \
-    isc-dhcp-relay=4.4.3-P1-2 \
+    isc-dhcp-relay=4.4.3-p1-2 \
     net-tools=2.10-0.1 \
-    frr=9.0.1-0~deb12u1 \
-    frr-pythontools=9.0.1-0~deb12u1 \
+    frr=9.1-0~deb12u1 \
+    frr-pythontools=9.1-0~deb12u1 \
     telnet=0.17+2.4-2+deb12u1 \
     tcpdump=4.99.3-1 \
     smcroute=2.5.6-1 \
@@ -90,7 +90,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     automake=1:1.16.5-1.3 \
     flex=2.6.4-8.2 \
     bison=2:3.8.2+dfsg-1+b1 \
-    curl=7.88.1-10+deb12u4 \
+    curl=7.88.1-10+deb12u5 \
     ca-certificates=20230311 \
     gnupg=2.2.40-1.1 \
     lsb-release=12.0-1 \
