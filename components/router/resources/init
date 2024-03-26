@@ -4,90 +4,92 @@
 # By default only check for WAN and AUX interfaces
 # Any other interface needs to be passed via ENV to be checked.
 # Mandatory checks
-while [ -z $(ls /sys/class/net | grep -w eth1) ]; do
+while ! find /sys/class/net | grep -q -w eth1 ; do
     echo "WAN interface not found"
     sleep 5
 done
 ip link set eth1 up
 
-while [ -z $(ls /sys/class/net | grep -w aux0) ]; do
+while ! find /sys/class/net | grep -q -w aux0 ; do
     echo "WAN interface not found"
     sleep 5
 done
 ip link set aux0 up
 
-# Zebra Configuration
-ZEBRA_CONF=`cat <<EOF
+# Zebra Configuration template
+ZEBRA_CONF=$(cat <<EOF
 !
 ! Interface #IFACE
 !
 interface #IFACE
- ip address #IP4
- ipv6 address #IP6
  no ipv6 nd suppress-ra
  ipv6 nd router-preference high
  no ipv6 nd managed-config-flag
  no ipv6 nd other-config-flag
-!
 EOF
-`
+)
 
-# PIMD Configuration
-PIMD_CONF=`cat <<EOF
+# PIMD configuration template
+PIMD_CONF=$(cat <<EOF
 
 interface #IFACE
  ip pim ssm
  ip igmp
 
 EOF
-`
+)
 
-# RIPD Conf
-RIPD_CONF=`cat <<EOF
+# RIPD configuratio template
+RIPD_CONF=$(cat <<EOF
 interface #IFACE
     ip rip authentication mode md5
     ip rip authentication key-chain mykey1
 
 EOF
-`
+)
+RIPD_STUB="! RIP network"
 
-# Checks and configurations for CPE interfaces
-for i in $CPE_MGMT $CPE_DATA $CPE_VOICE;
-do
-    IFS=,
-    read IFACE IP4 IP6 <<<$i
+CPE_DATA="$CPE_DATA_IFACE $CPE_DATA_BUNDLE"
+CPE_MGMT="$CPE_MGMT_IFACE $CPE_MGMT_BUNDLE"
+CPE_VOICE="$CPE_VOICE_IFACE $CPE_VOICE_BUNDLE"
 
-    while [ -z $(ls /sys/class/net | grep -w $IFACE) ]
-    do
-        echo "$IFACE interface not found"
-        sleep 5
-    done
-    ip link set $IFACE up
+IFACE_REQUIRED=("$CPE_DATA")
 
-    # Update Zebra Conf
-    echo "$ZEBRA_CONF" | sed "s|#IFACE|$IFACE|" | \
-    sed "s|#IP4|$IP4|" | sed "s|#IP6|$IP6|" >> /etc/frr/zebra.conf
+if [ "$TRIPLE_PLAY" == "yes" ]; then
+    IFACE_REQUIRED+=("$CPE_MGMT" "$CPE_VOICE")
+fi
 
-    # Update PIM Conf
-    echo "$PIMD_CONF" | sed "s|#IFACE|$IFACE|" >> /etc/frr/pimd.conf
+for IFACE_DATA in "${IFACE_REQUIRED[@]}"; do
+    read -r IFACE BUNDLE <<< "$IFACE_DATA"
+    echo "checked: $IFACE, status:exists"
+    echo ""
 
-    # Update RIP Conf
-    RIPD_TMP=$(sed "s|! Add active RIP network|    network $IFACE\n! Add active RIP network|"  /etc/frr/ripd.conf)
-    echo $RIPD_TMP > /etc/frr/ripd.conf
-    echo "$RIPD_CONF" | sed "s|#IFACE|$IFACE|" >> /etc/frr/ripd.conf
+    if [ "$FRR_AUTO_CONF" == "yes" ]; then
+        ZEBRA_BLOB="${ZEBRA_CONF//\#IFACE/$IFACE}"
+        for IP_GROUP in $(echo "$BUNDLE"| tr ";" "\n"); do
+            read -r IPv4 IPv6 <<< "$(echo "$IP_GROUP"| tr ',' ' ')"
+            if [ -n "$IPv4" ]; then
+                ZEBRA_BLOB=$(cat <<< "$ZEBRA_BLOB"$'\n'" ip address $IPv4")
+            fi
+            if [ -n "$IPv6" ]; then
+                ZEBRA_BLOB=$(cat <<< "$ZEBRA_BLOB"$'\n'" ipv6 address $IPv6")
+            fi
+        done
 
+        cat >> /etc/frr/zebra.conf <<< "$ZEBRA_BLOB"
+        echo "${PIMD_CONF//\#IFACE/$IFACE}" >> /etc/frr/pimd.conf
+        echo "${RIPD_CONF//\#IFACE/$IFACE}" >> /etc/frr/ripd.conf
+        RIPD_TMP=$(sed "s|$RIPD_STUB|  network $IFACE\n$RIPD_STUB|" /etc/frr/ripd.conf)
+        echo "$RIPD_TMP" > /etc/frr/ripd.conf
+
+    fi
 done
 
-unset IFS
 sysctl -p /etc/sysctl.conf
-
-# Modify SMCroute to redirect at $MCAST_TARGET iface
-sed -i "s|#TARGET|$MCAST_TARGET|" /etc/smcroute.conf
 
 # Zebra is loaded by default
 sed -i "/zebra_options=/d" /etc/frr/daemons
 echo "zebra_options=\"  -A 127.0.0.1 -s 90000000 -f /etc/frr/zebra.conf\"" >> /etc/frr/daemons
-
 
 echo "Starting daemons."
 for svc in bgpd isisd ospfd ospf6d ripd ripngd pimd pim6d; do
@@ -110,26 +112,32 @@ if [ -f /etc/frr/staticd.conf ]; then
 fi
 
 service frr start
+
+# Modify SMCroute to redirect at $MCAST_TARGET iface
+# SET only if MCAST_TARGET is set
+if [ -n "$MCAST_TARGET" ]; then
+    sed -i "s|#TARGET|$MCAST_TARGET|" /etc/smcroute.conf
+    service smcroute start
+fi
+
 sleep 5
 
 update-alternatives --set iptables /usr/sbin/iptables-legacy
 update-alternatives --set ip6tables /usr/sbin/ip6tables-nft
-iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
 
-# Start DHCP relay once all interfaces are up with FRR
-if [ ! -z $(echo $DHCP_RELAY) ]; then
-    for i in $CPE_MGMT $CPE_DATA $CPE_VOICE;
-    do
-        IFS=,
-        read RELAY4 RELAY6 <<<$DHCP_RELAY
-        read IFACE IP4 IP6 <<<$i
-        dhcrelay -4 -a -iu eth1 -id $IFACE $RELAY4
-        dhcrelay -6 -I -l $IFACE -u $RELAY6%eth1
-    done
-    unset IFS
+if [ -n "$ENABLE_NAT_ON" ]; then
+    iptables -t nat -A POSTROUTING -o "$ENABLE_NAT_ON" -j MASQUERADE
+    ip6tables -t nat -A POSTROUTING -o "$ENABLE_NAT_ON" -j MASQUERADE
 fi
 
-service smcroute start
+for IFACE_DATA in "${IFACE_REQUIRED[@]}"; do
+    read -r IFACE BUNDLE <<< "$IFACE_DATA"
+    if [ -n "$DHCP_RELAY" ]; then
+        read -r UPSTREAM RELAY4 RELAY6 <<< "$(echo "$DHCP_RELAY"| tr ',' ' ')"
+        dhcrelay -4 -iu "$UPSTREAM" -id "$IFACE" "$RELAY4"
+        dhcrelay -6 -l "$IFACE" -u "$RELAY6"%"$UPSTREAM"
+    fi
+done
 
 # Run sshd by default
 /usr/sbin/sshd -D

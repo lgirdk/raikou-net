@@ -7,15 +7,37 @@ LABEL version="frr_9.0"
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PATH "/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin"
 
-# Adding Default IFACE env variables
-ENV CPE_MGMT=vl_eth1,10.1.1.1/24,2001:dead:cafe:1::1/64
-ENV CPE_DATA=vl_eth2,10.1.2.1/24,2001:dead:cafe:2::1/64
-ENV CPE_VOICE=vl_eth3,10.1.3.1/24,2001:dead:cafe:3::1/64
+# Adding ENV to allow generation of FRR configurations
+# Support enabled only for RIP, SMCROUTE and ZEBRA
+ENV FRR_AUTO_CONF=yes
+
+# Add ENV to enable NAT on uplink
+# Generally eth0 interface, when container is created with docker bridge.
+ENV ENABLE_NAT_ON=eth0
+
+# Following ENV are only valid in case of AUTO_CONF=yes
+# TRIPLE PLAY generates configuration for voice, management and data services.
+# Each service should translate to one interface in Zebra
+ENV TRIPLE_PLAY=yes
+
+# If TRIPLE_PLAY is disabled, then only the DATA service is considered.
+# Adding Default IFACE env variables for TRIPLE_PLAY=yes
+ENV CPE_MGMT_IFACE=vl_eth1
+ENV CPE_DATA_IFACE=vl_eth2
+ENV CPE_VOICE_IFACE=vl_eth3
+
+# IP bundles that need to be assigned to each service interface
+# You can add more values by separating them with ';'
+# Useful when TRIPLE_PLAY is disabled and only DATA interface is active.
+ENV CPE_MGMT_BUNDLE=10.1.1.1/24,2001:dead:cafe:1::1/64
+ENV CPE_DATA_BUNDLE=10.1.2.1/24,2001:dead:cafe:2::1/64
+ENV CPE_VOICE_BUNDLE=10.1.3.1/24,2001:dead:cafe:3::1/64
+
 ENV MCAST_TARGET=vl_eth2
 
-# Specify v4 RELAY IP, v6 RELAY IP
+# Specify UPSTREAM IFACE,v4 RELAY IP,v6 RELAY IP
 # Leaving empty by default
-ENV DHCP_RELAY=,
+ENV DHCP_RELAY=
 
 WORKDIR /root
 

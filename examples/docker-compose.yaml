@@ -7,7 +7,18 @@ services:
         ports:
             - 4000:22
         environment:
-            DHCP_RELAY: 172.25.1.20,2001:dead:beef:2::20
+            ENABLE_NAT_ON: eth0
+            FRR_AUTO_CONF: yes # yamllint disable-line rule:truthy
+            TRIPLE_PLAY: yes # yamllint disable-line rule:truthy
+            CPE_MGMT_IFACE: vl_eth1
+            CPE_DATA_IFACE: vl_eth2
+            CPE_VOICE_IFACE: vl_eth3
+            CPE_MGMT_BUNDLE: 10.1.1.1/24,2001:dead:cafe:1::1/64
+            CPE_DATA_BUNDLE: 10.1.2.1/24,2001:dead:cafe:2::1/64
+            CPE_VOICE_BUNDLE: 10.1.3.1/24,2001:dead:cafe:3::1/64
+            MCAST_TARGET: vl_eth2
+            DHCP_RELAY: eth1,172.25.1.20,2001:dead:beef:2::20
+
         privileged: true
         hostname: router
         depends_on:
