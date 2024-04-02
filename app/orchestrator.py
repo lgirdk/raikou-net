@@ -1,3 +1,5 @@
+# ruff: noqa
+
 """OVS network orchestration script.
 
 Basic Script that depends on having ovs-vsctl pre-installed in the system.
