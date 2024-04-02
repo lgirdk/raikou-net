@@ -1,10 +1,10 @@
-# ruff: noqa
-
 """OVS network orchestration script.
 
 Basic Script that depends on having ovs-vsctl pre-installed in the system.
 Need to ensure that the dockerr.socket is mounted else the program must close.
 """
+
+from __future__ import annotations
 
 import hashlib
 import ipaddress
@@ -33,6 +33,12 @@ _FORMAT = "[%(asctime)s] [%(levelname)s] %(funcName)s:: %(message)s"
 _FORMATTER = logging.Formatter(_FORMAT)
 _HANDLER.setFormatter(_FORMATTER)
 _LOGGER.addHandler(_HANDLER)
+
+_DB_JSON_PATH = Path("/tmp/db.json")  # noqa: S108
+
+_MAX_FAIL_COUNT = 2
+
+_DOCKER_SOCKET = Path("/var/run/docker.sock")
 
 
 class OVSParentInfo(TypedDict, total=False):
@@ -74,7 +80,7 @@ def _get_db() -> dict[str, Any]:
     :return: The OVS database cache.
     :rtype: dict[str, Any]
     """
-    return json.load(Path("/tmp/db.json").open(encoding="utf-8"))
+    return json.load(_DB_JSON_PATH.open(encoding="utf-8"))
 
 
 def _run_command(command: str, check: bool = True) -> CompletedProcess[str]:
@@ -91,9 +97,9 @@ def _run_command(command: str, check: bool = True) -> CompletedProcess[str]:
     try:
         return run(command.split(), check=check, capture_output=True, text=True)
     except CalledProcessError as exc:
-        _LOGGER.error("Subprocess error:\nCommand failed: %s", exc.cmd)
+        _LOGGER.exception("Subprocess error:\nCommand failed: %s", exc.cmd)
         stderr_output = exc.stderr if exc.stderr else None
-        _LOGGER.error("Command stderr output:\n%s", stderr_output)
+        _LOGGER.exception("Command stderr output:\n%s", stderr_output)
         raise
 
 
@@ -110,13 +116,13 @@ def _get_interface_ip(interface: str) -> list[str | None]:
         result = run(command, check=True, capture_output=True, text=True)
         return re.findall(r"inet\d*\s+(\S+)", result.stdout.strip())
     except CalledProcessError as exc:
-        _LOGGER.error("Subprocess error:\nCommand failed: %s", exc.cmd)
+        _LOGGER.exception("Subprocess error:\nCommand failed: %s", exc.cmd)
         stderr_output = exc.stderr.strip()
-        _LOGGER.error("Command stderr output:\n%s", stderr_output)
+        _LOGGER.exception("Command stderr output:\n%s", stderr_output)
     return []
 
 
-def _hash_string(string) -> str:
+def _hash_string(string: str) -> str:
     """Hashes a string using the SHA-256 algorithm.
 
     Returns the first 8 bits as an 8-bit string.
@@ -126,13 +132,9 @@ def _hash_string(string) -> str:
     :return: The first 10 bits of the hash as an 8-bit string.
     :rtype: str
     """
-    # Hash the input string using SHA-256 algorithm
-    hash_object = hashlib.sha256(string.encode())
-    hex_digest = hash_object.hexdigest()
-
-    # Convert the first 8 characters (4 bytes) of the hash to an 8-bit string
-    eight_bit_string = hex_digest[:8]
-    return eight_bit_string
+    # Hash the input string using SHA-256 algorithm and convert
+    # the first 8 characters (4 bytes) of the hash to an 8-bit string
+    return hashlib.sha256(string.encode()).hexdigest()[:8]
 
 
 def _veth_exists(veth_end: str) -> bool:
@@ -169,9 +171,8 @@ def _add_iface_to_bridge(bridge_name: str, parent_info: OVSParentInfo) -> None:
         devs = _run_command("ls -l /sys/class/net", check=False)
         usb_info = [dev for dev in devs.stdout.splitlines() if usb_port in dev]
         if len(usb_info) > 1:
-            raise ValueError(
-                f"Identified more than one interface for usb bus: {usb_port}"
-            )
+            msg = f"Identified more than one interface for usb bus: {usb_port}"
+            raise ValueError(msg)
         parent = usb_info[0].split()[8]
 
     parent_cache = db_cache.setdefault(parent, {})
@@ -270,10 +271,11 @@ def init_ovs_bridge(bridge_name: str, info: OVSBridgeInfo) -> None:
 
         if set_ip:
             if cache_changed and ip_addr in hosts.values():
-                raise ValueError(
-                    f"IP {ip_addr} already allocated to someone else. "
-                    f"Cannot assign request address to bridge {bridge_name}"
+                msg_set_ip_err = (
+                    f"IP {ip_addr} already allocated to someone else. ",
+                    f"Cannot assign request address to bridge {bridge_name}",
                 )
+                raise ValueError(msg_set_ip_err)
 
             if ipaddress.ip_interface(ip_addr) not in ipaddress.ip_network(
                 str(ip_range)
@@ -366,7 +368,10 @@ def create_veth_pair(on_bridge: str, vlan_map: str) -> None:
             raise ValueError(msg)
 
 
-def add_iface_to_container(container_name: str, info: OVSContainerInfo) -> None:
+def add_iface_to_container(  # noqa: PLR0915, C901, PLR0912
+    container_name: str,
+    info: OVSContainerInfo,
+) -> None:
     """Attach a container to a target OVS bridge.
 
     :param container_name: Target container to push the interface at
@@ -415,9 +420,8 @@ def add_iface_to_container(container_name: str, info: OVSContainerInfo) -> None:
                 continue
 
             if "/" not in str(ipaddr):
-                raise ValueError(
-                    f"{container_name}: ip {ipaddr} must have a prefix mask"
-                )
+                msg_no_prefix = f"{container_name}: ip {ipaddr} must have a prefix mask"
+                raise ValueError(msg_no_prefix)
             if not isinstance(ipaddress.ip_interface(str(ipaddr)), family):
                 msg = (
                     f"{container_name}: {ip_idx} {ipaddr} "
@@ -428,10 +432,11 @@ def add_iface_to_container(container_name: str, info: OVSContainerInfo) -> None:
             if ipaddr != hosts.get(container_name):
                 hosts.pop(container_name, None)
                 if ipaddr in hosts.values():
-                    raise ValueError(
-                        f"IP {ipaddr} already allocated to someone else."
-                        f"Failed to assign addr to container: {container_name}"
+                    msg_ip_exists = (
+                        f"IP {ipaddr} already allocated to someone else.",
+                        f"Failed to assign addr to container: {container_name}",
                     )
+                    raise ValueError(msg_ip_exists)
 
             hosts[container_name] = ipaddr
             cmd = f"{cmd} --{ip_idx}={ipaddr}"
@@ -460,10 +465,11 @@ def add_iface_to_container(container_name: str, info: OVSContainerInfo) -> None:
                     break
             else:
                 _LOGGER.debug("Subnet exhausted %s", ip_range)
-                raise IndexError(
-                    "Failed to automatically allocate an"
-                    f" IP to container: {container_name}"
+                msg_subnet_exhausted = (
+                    "Failed to automatically allocate an",
+                    f" IP to container: {container_name}",
                 )
+                raise IndexError(msg_subnet_exhausted)
 
     if macaddress := info.get("macaddress", ""):
         cmd = f"{cmd} --macaddress={macaddress}"
@@ -551,12 +557,12 @@ def add_iface_to_container(container_name: str, info: OVSContainerInfo) -> None:
 def main() -> None:
     """Runner function."""
     # Initial Check if docker socket is loaded.
-    if not os.path.exists("/var/run/docker.sock"):
+    if not _DOCKER_SOCKET.exists():
         _LOGGER.error("Need to mount Docker socket!!")
-        exit(1)
+        sys.exit(1)
 
     # Initial check if openvswitch module is loaded.
-    lsmod_out = run(["lsmod"], check=True, capture_output=True)
+    lsmod_out = run(["/bin/lsmod"], check=True, capture_output=True)
     try:
         run(
             ["grep", "openvswitch"],
@@ -565,14 +571,14 @@ def main() -> None:
             capture_output=True,
         )
     except CalledProcessError:
-        _LOGGER.error("Openvswitch kernel modules need to be mounted from host!!")
-        exit(1)
+        _LOGGER.exception("Openvswitch kernel modules need to be mounted from host!!")
+        sys.exit(1)
 
-    config = json.load(Path("/root/config.json").open(encoding="UTF-8"))
+    config = json.load(Path("/root/config.json").open(encoding="UTF-8"))  # noqa: SIM115
 
     fail_count = _get_db().setdefault("failed", 0)
-    if fail_count > 2:
-        exit(1)
+    if fail_count > _MAX_FAIL_COUNT:
+        sys.exit(1)
 
     try:
         # Initialize all parent bridges
@@ -594,19 +600,19 @@ def main() -> None:
         # Introduce a sleep since supervisor can't add interval between restarts.
         time.sleep(10)
 
-    except (CalledProcessError, ValueError, IndexError) as exc:
-        _LOGGER.error("Exiting core due to exc %s", str(exc))
+    except (CalledProcessError, ValueError, IndexError):
+        _LOGGER.exception("Exiting core due to exception")
         traceback.print_exc()
         _get_db()["failed"] = fail_count + 1
-        if fail_count > 2:
-            _LOGGER.error("Orchestrator keeps failing!")
-            _LOGGER.error("Bailing out!! Will not attempt to modify host network!!")
+        if fail_count > _MAX_FAIL_COUNT:
+            _LOGGER.exception("Orchestrator keeps failing!")
+            _LOGGER.exception("Bailing out!! Will not attempt to modify host network!!")
 
     finally:
         # Dump the Lease DB
         json.dump(
             _get_db(),
-            Path("/tmp/db.json").open("w", encoding="utf-8"),
+            _DB_JSON_PATH.open("w", encoding="utf-8"),
             indent=4,
         )
 

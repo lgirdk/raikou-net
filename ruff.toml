@@ -44,6 +44,8 @@ ignore = [
     "E501",   # line too long ignoring
     "COM812", # The following rule may cause conflicts when used with the formatter
     "ISC001", # The following rule may cause conflicts when used with the formatter
+    "S603",   # we allow this way of execution
+    "S607",   # we allow it so that to support different platforms and environments
 ]
 
 select = ["ALL"]
