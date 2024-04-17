@@ -1,9 +1,10 @@
 """To update KEA configuration over FAST API."""
+
 # pylint: disable=import-error
 # pylint: disable=W0622
 # pylint: disable=too-few-public-methods
 import json
-from asyncio import Lock, TimeoutError, wait_for
+from asyncio import Lock, wait_for
 from pathlib import Path
 
 import httpx
@@ -42,12 +43,12 @@ class DHCPData(BaseModel):
     reservation_data: dict
 
 
-def _update_reservation(data: DHCPData, mode: str):
+def _update_reservation(data: DHCPData, mode: str) -> None:
     """Use to update DHCPv4/v6 reservation data for a board.
 
     :param data: DHCP options data per service pool
     :type data: DHCPData
-    :param mode: IP address family, Can be either 4/6
+    :param mode: IP address family, Can be either v4/v6
     :type mode: str
     :raises ValueError: In case DHCP settings do not get applied
     """
@@ -80,12 +81,12 @@ def _update_reservation(data: DHCPData, mode: str):
         raise ValueError(output[0]["text"])
 
 
-def rollback(data: DHCPData, mode: str):
+def rollback(data: DHCPData, mode: str) -> None:
     """Rollback DHCPv4/v6 configurations.
 
     :param data: DHCP options data per service pool
     :type data: DHCPData
-    :param mode: IP address family, Can be either 4/6
+    :param mode: IP address family, can be either v4/v6
     :type mode: str
     """
     fpath = f"/etc/kea/board-v{mode}-{data.board_id}.json"
@@ -101,8 +102,8 @@ def rollback(data: DHCPData, mode: str):
     response.raise_for_status()
 
 
-async def update_dhcp_reservations(data: DHCPData):
-    """Update DHCPv4 reservations
+async def update_dhcp_reservations(data: DHCPData) -> None:
+    """Update DHCPv4 reservations.
 
     :param data: DHCPv4 options data per service pool
     :type data: DHCPData
@@ -110,7 +111,7 @@ async def update_dhcp_reservations(data: DHCPData):
     _update_reservation(data=data, mode="4")
 
 
-async def update_dhcp6_reservations(data: DHCPData):
+async def update_dhcp6_reservations(data: DHCPData) -> None:
     """Update DHCPv6 reservations.
 
     :param data: DHCPv6 options data per service pool
@@ -122,7 +123,6 @@ async def update_dhcp6_reservations(data: DHCPData):
 @APP.post("/update_dhcp")
 async def update_dhcp_with_lock(data: DHCPData) -> JSONResponse:
     """Update DHCPv4 server only if you have a lock.
-
 
     :param data: DHCPv4 options data per service pool
     :type data: DHCPData
@@ -161,7 +161,7 @@ async def update_dhcp_with_lock(data: DHCPData) -> JSONResponse:
 
 @APP.post("/update_dhcp6")
 async def update_dhcp6_with_lock(data: DHCPData) -> JSONResponse:
-    """Update DHCP6 server only if you have a lock.
+    """Update DHCPv6 server only if you have a lock.
 
     :param data: DHCPv6 options data per service pool
     :type data: DHCPData
@@ -201,4 +201,4 @@ async def update_dhcp6_with_lock(data: DHCPData) -> JSONResponse:
 
 if __name__ == "__main__":
     LOG_CONFIG.update(LOG_HANDLERS)
-    uvicorn.run(APP, port=8080, host="0.0.0.0", log_config=LOG_CONFIG)
+    uvicorn.run(APP, port=8080, host="0.0.0.0", log_config=LOG_CONFIG)  # noqa: S104

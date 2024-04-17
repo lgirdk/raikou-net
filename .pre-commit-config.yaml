@@ -3,12 +3,12 @@
 # See https://pre-commit.com/hooks.html for more hooks
 repos:
     - repo: https://github.com/commitizen-tools/commitizen
-      rev: v3.21.3
+      rev: v3.22.0
       hooks:
           - id: commitizen
             stages: [commit-msg]
     - repo: https://github.com/pre-commit/pre-commit-hooks
-      rev: v4.5.0
+      rev: v4.6.0
       hooks:
           - id: check-ast
             stages: [commit]
@@ -66,21 +66,6 @@ repos:
             files: \.py$
             args: [--in-place]
             stages: [commit]
-    - repo: https://github.com/timothycrosley/isort
-      rev: 5.13.2
-      hooks:
-          - id: isort
-            args: [--profile, black]
-            name: isort
-            entry: isort
-            require_serial: true
-            language: python
-            types: [python]
-            stages: [commit]
-    - repo: https://github.com/astral-sh/ruff-pre-commit
-      rev: v0.3.3
-      hooks:
-          - id: ruff
     - repo: https://github.com/asottile/pyupgrade
       rev: v3.15.2
       hooks:
@@ -103,19 +88,25 @@ repos:
           - id: yamllint
             args: [--format, parsable]
             stages: [commit]
-    - repo: https://github.com/psf/black
-      rev: 24.3.0
+    - repo: https://github.com/astral-sh/ruff-pre-commit
+      rev: v0.3.3
       hooks:
-          - id: black
-            description: 'Black: The uncompromising Python code formatter'
-            args: [--safe]
+          - id: ruff
+            # https://docs.astral.sh/ruff/formatter/#sorting-imports
+            args: [check, --select, I, --fix]
+            name: ruff-isort
+            stages: [commit]
+          - id: ruff-format
+            stages: [commit]
+          - id: ruff
             stages: [commit]
     - repo: https://github.com/akaihola/darglint2
       rev: v1.8.2
       hooks:
           - id: darglint2
             args: [--docstring-style, sphinx]
+            stages: [commit]
     - repo: https://github.com/hadolint/hadolint
-      rev: v2.12.0
+      rev: v2.12.1-beta
       hooks:
           - id: hadolint
