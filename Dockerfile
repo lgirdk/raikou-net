@@ -9,6 +9,7 @@ COPY ./app app
 
 RUN apk add -u --no-cache \
     openvswitch=2.17.9-r0 \
+    kmod=31-r2 \
     bash=5.2.21-r0 \
     openrc=0.52.1-r2 \
     openssh=9.6_p1-r0 \
