@@ -4,8 +4,11 @@
 # pylint: disable=W0622
 # pylint: disable=too-few-public-methods
 import json
+import logging
+import subprocess
 from asyncio import Lock, wait_for
 from pathlib import Path
+from typing import Literal
 
 import httpx
 import uvicorn
@@ -43,6 +46,56 @@ class DHCPData(BaseModel):
     reservation_data: dict
 
 
+def check_and_start_service(service: Literal["dhcp4", "dhcp6"]) -> None:
+    """Check the status of the specified DHCP service and start it if inactive.
+
+    This function runs the `keactrl status` command to check if the specified
+    DHCP service (dhcp4 or dhcp6) is active. If the service is inactive, it
+    calls `start_service` to start the service.
+
+    :param service: The DHCP service to check and start if inactive.
+                    Must be either "dhcp4" or "dhcp6".
+    :type service: Literal["dhcp4", "dhcp6"]
+    """
+    try:
+        # Run the `keactrl status` command and capture the output
+        result = subprocess.run(
+            ["keactrl", "status"], capture_output=True, text=True, check=True
+        )
+        output = result.stdout
+
+        # Check the status of the specified service
+        service_status = f"DHCPv{service[-1]} server: active" in output
+
+        # If the specified service is inactive, start it
+        if not service_status:
+            start_service(service)
+
+    except subprocess.CalledProcessError as e:
+        logging.exception("Error checking status: %s", e.stderr)
+
+
+def start_service(service: Literal["dhcp4", "dhcp6"]) -> None:
+    """Start the specified DHCP service.
+
+    This function runs the `keactrl start -s <service>` command to start the
+    specified DHCP service (dhcp4 or dhcp6).
+
+    :param service: The DHCP service to start. Must be either "dhcp4" or "dhcp6".
+    :type service: Literal["dhcp4", "dhcp6"]
+    """
+    try:
+        # Start the specified service (dhcp4 or dhcp6)
+        subprocess.run(
+            ["keactrl", "start", "-s", service],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except subprocess.CalledProcessError as e:
+        logging.exception("Error starting %s service: %s", service, e.stderr)
+
+
 def _update_reservation(data: DHCPData, mode: str) -> None:
     """Use to update DHCPv4/v6 reservation data for a board.
 
@@ -68,6 +121,12 @@ def _update_reservation(data: DHCPData, mode: str) -> None:
         path.write_text(",\n".join(blocks), encoding="UTF-8")
     else:
         json.dump(data.reservation_data, path.open("w", encoding="UTF-8"), indent=4)
+
+    # check if DHCPv4 is running before updating reservation
+    if mode == "4":
+        check_and_start_service("dhcp4")
+    else:
+        check_and_start_service("dhcp6")
 
     # reload the DHCP server via KEA Backend API.
     response = httpx.post(

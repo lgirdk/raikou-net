@@ -18,15 +18,13 @@ RUN apt-get update && \
     psmisc=23.6-1 \
     tcpdump=4.99.3-1 \
     traceroute=1:2.1.2-1 \
+    python3=3.11.2-6 \
+    python3-uvicorn=0.17.6-1 \
+    python3-fastapi=0.92.0-1 \
+    python3-httpx=0.23.3-1 \
     tshark=4.0.11-1~deb12u1 && \
     mkdir -p /var/log/kea && \
     rm -rf /var/lib/apt/lists/* && \
-    \
-    # Install PIP packages for fastapi
-    python3 -m pip --no-cache-dir install \
-    uvicorn==0.17.6 \
-    fastapi==0.77.1 \
-    httpx==0.22.0 && \
     \
     # Install KEA debian package
     curl -1sLf 'https://dl.cloudsmith.io/public/isc/kea-2-5/setup.deb.sh'| bash && \
