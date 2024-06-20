@@ -17,8 +17,7 @@ interface=eth1
 addn-hosts=/etc/dnsmasq.hosts
 EOF
 
-# Loading default host values based on DHCP configuration
-cat > /etc/dnsmasq.hosts << EOF
+DNSMASQ_HOSTS=$(cat << EOF
 4003:1::1 aftr.boardfarm.com
 172.25.1.101 wan.boardfarm.com
 2001:dead:beef:2::101 wan.boardfarm.com
@@ -29,6 +28,12 @@ cat > /etc/dnsmasq.hosts << EOF
 2001:dead:beef:2::101 ipv6.google.com
 172.25.1.101 www.google.com
 EOF
+)
+
+# Loading default host values based on DHCP configuration
+if [ ! -f /etc/dnsmasq.hosts ]; then
+    cat > /etc/dnsmasq.hosts <<< "$DNSMASQ_HOSTS"
+fi
 
 service dnsmasq start;
 /usr/sbin/sshd -D
