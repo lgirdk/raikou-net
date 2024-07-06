@@ -12,7 +12,7 @@ RUN apk add -u --no-cache \
     kmod=31-r2 \
     bash=5.2.21-r0 \
     openrc=0.52.1-r2 \
-    openssh=9.6_p1-r0 \
+    openssh=9.6_p1-r1 \
     uuidgen=2.39.3-r0 \
     iproute2=6.6.0-r0 \
     supervisor=4.2.5-r4 && \
