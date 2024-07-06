@@ -3,7 +3,7 @@ FROM python:3.12.2-slim-bookworm AS build-stage
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential=12.9 \
-    wget=1.21.3-1+b1 \
+    wget=1.21.3-1+b2 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /root
@@ -26,7 +26,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN echo "root:bigfoot1" | chpasswd
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    openssh-server=1:9.2p1-2+deb12u2 \
+    openssh-server=1:9.2p1-2+deb12u3 \
     iproute2=6.1.0-3 \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir /var/run/sshd \
