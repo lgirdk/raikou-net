@@ -26,16 +26,16 @@ interface #IFACE
  ipv6 nd router-preference high
  no ipv6 nd managed-config-flag
  no ipv6 nd other-config-flag
+!
 EOF
 )
 
 # PIMD configuration template
 PIMD_CONF=$(cat <<EOF
-
 interface #IFACE
  ip pim ssm
  ip igmp
-
+!
 EOF
 )
 
@@ -44,7 +44,7 @@ RIPD_CONF=$(cat <<EOF
 interface #IFACE
     ip rip authentication mode md5
     ip rip authentication key-chain mykey1
-
+!
 EOF
 )
 RIPD_STUB="! RIP network"
@@ -76,47 +76,35 @@ for IFACE_DATA in "${IFACE_REQUIRED[@]}"; do
             fi
         done
 
-        cat >> /etc/frr/zebra.conf <<< "$ZEBRA_BLOB"
-        echo "${PIMD_CONF//\#IFACE/$IFACE}" >> /etc/frr/pimd.conf
-        echo "${RIPD_CONF//\#IFACE/$IFACE}" >> /etc/frr/ripd.conf
-        RIPD_TMP=$(sed "s|$RIPD_STUB|  network $IFACE\n$RIPD_STUB|" /etc/frr/ripd.conf)
-        echo "$RIPD_TMP" > /etc/frr/ripd.conf
+        {
+            cat <<< "$ZEBRA_BLOB"
+            echo "${PIMD_CONF//\#IFACE/$IFACE}"
+            echo "${RIPD_CONF//\#IFACE/$IFACE}"
+        } >> /etc/frr/frr.conf
+
+        sed -i "s|$RIPD_STUB|  network $IFACE\n$RIPD_STUB|" /etc/frr/frr.conf
 
     fi
 done
 
 sysctl -p /etc/sysctl.conf
 
-# Zebra is loaded by default
-sed -i "/zebra_options=/d" /etc/frr/daemons
-echo "zebra_options=\"  -A 127.0.0.1 -s 90000000 -f /etc/frr/zebra.conf\"" >> /etc/frr/daemons
-
 echo "Starting daemons."
-for svc in bgpd isisd ospfd ospf6d ripd ripngd pimd pim6d; do
-    if [ -f /etc/frr/${svc}.conf ]; then
-        echo "Starting ${svc}."
-        sed -i s"/${svc}=no/${svc}=yes/" /etc/frr/daemons
-        sed -i "/${svc}_options=/d" /etc/frr/daemons
-        if [[ ${svc} == *"6"* ]]; then
-            # IPv6 service
-            echo "${svc}_options=\"  -A ::1 -f /etc/frr/${svc}.conf\"" >> /etc/frr/daemons
-        else
-            echo "${svc}_options=\"  -A 127.0.0.1 -f /etc/frr/${svc}.conf\"" >> /etc/frr/daemons
-        fi
-    fi
+for svc in $FRR_DAEMONS; do
+    echo "Starting ${svc}."
+    sed -i s"/${svc}=no/${svc}=yes/" /etc/frr/daemons
 done
 
 # New changes in FRR 9.0+
 if [ -f /etc/frr/staticd.conf ]; then
-    echo "staticd=yes" >> /etc/frr/daemons
+    cat /etc/frr/staticd.conf >> /etc/frr/frr.conf
+    sed -i s"/staticd=no/staticd=yes/" /etc/frr/daemons
 fi
 
 service frr start
 
 # Modify SMCroute to redirect at $MCAST_TARGET iface
-# SET only if MCAST_TARGET is set
-if [ -n "$MCAST_TARGET" ]; then
-    sed -i "s|#TARGET|$MCAST_TARGET|" /etc/smcroute.conf
+if [ -f /etc/smcroute.conf ]; then
     service smcroute start
 fi
 
@@ -134,8 +122,8 @@ for IFACE_DATA in "${IFACE_REQUIRED[@]}"; do
     read -r IFACE BUNDLE <<< "$IFACE_DATA"
     if [ -n "$DHCP_RELAY" ]; then
         read -r UPSTREAM RELAY4 RELAY6 <<< "$(echo "$DHCP_RELAY"| tr ',' ' ')"
-        dhcrelay -4 -iu "$UPSTREAM" -id "$IFACE" "$RELAY4"
-        dhcrelay -6 -l "$IFACE" -u "$RELAY6"%"$UPSTREAM"
+        dhcrelay -4 -iu "$UPSTREAM" -id "$IFACE" "$RELAY4" || true
+        dhcrelay -6 -l "$IFACE" -u "$RELAY6"%"$UPSTREAM" || true
     fi
 done
 

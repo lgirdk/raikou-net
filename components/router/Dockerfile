@@ -33,7 +33,7 @@ ENV CPE_MGMT_BUNDLE=10.1.1.1/24,2001:dead:cafe:1::1/64
 ENV CPE_DATA_BUNDLE=10.1.2.1/24,2001:dead:cafe:2::1/64
 ENV CPE_VOICE_BUNDLE=10.1.3.1/24,2001:dead:cafe:3::1/64
 
-ENV MCAST_TARGET=vl_eth2
+ENV FRR_DAEMONS="zebra ripd pimd"
 
 # Specify UPSTREAM IFACE,v4 RELAY IP,v6 RELAY IP
 # Leaving empty by default
@@ -42,11 +42,8 @@ ENV DHCP_RELAY=
 WORKDIR /root
 
 # Copy FRR Daemon configs
-COPY ./resources/ripd.conf .
-COPY ./resources/zebra.conf .
-COPY ./resources/smcroute.conf .
+COPY ./resources/frr.conf .
 COPY ./resources/staticd.conf .
-COPY ./resources/pimd.conf .
 COPY ./resources/init .
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -56,7 +53,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     automake=1:1.16.5-1.3 \
     flex=2.6.4-8.2 \
     bison=2:3.8.2+dfsg-1+b1 \
-    curl=7.88.1-10+deb12u5 \
+    curl=7.88.1-10+deb12u6 \
     ca-certificates=20230311 \
     gnupg=2.2.40-1.1 \
     lsb-release=12.0-1 \
@@ -77,8 +74,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     iputils-ping=3:20221126-1 \
     isc-dhcp-relay=4.4.3-p1-2 \
     net-tools=2.10-0.1 \
-    frr=9.1-0~deb12u1 \
-    frr-pythontools=9.1-0~deb12u1 \
+    frr=10.0.1-0~deb12u1 \
+    frr-pythontools=10.0.1-0~deb12u1 \
     telnet=0.17+2.4-2+deb12u1 \
     tcpdump=4.99.3-1 \
     smcroute=2.5.6-1 \
@@ -112,7 +109,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     automake=1:1.16.5-1.3 \
     flex=2.6.4-8.2 \
     bison=2:3.8.2+dfsg-1+b1 \
-    curl=7.88.1-10+deb12u5 \
+    curl=7.88.1-10+deb12u6 \
     ca-certificates=20230311 \
     gnupg=2.2.40-1.1 \
     lsb-release=12.0-1 \
@@ -122,10 +119,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     rm -rf /var/lib/apt/lists/* && \
     \
     # Permissions
-    mv /root/ripd.conf /etc/frr/ripd.conf && \
-    mv /root/zebra.conf /etc/frr/zebra.conf && \
-    mv /root/pimd.conf /etc/frr/pimd.conf && \
-    mv /root/smcroute.conf /etc/smcroute.conf && \
+    mv /root/frr.conf /etc/frr/frr.conf && \
     mv /root/staticd.conf /etc/frr/staticd.conf && \
     chown -R frr /etc/frr && \
     chmod +x init && \
