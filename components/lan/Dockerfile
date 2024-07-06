@@ -11,9 +11,9 @@ WORKDIR /root
 COPY ./resources/container_utils-1.1.1-py3-none-any.whl container_utils-1.1.1-py3-none-any.whl
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl=7.88.1-10+deb12u5 \
+    curl=7.88.1-10+deb12u6 \
     dante-server=1.4.2+dfsg-7+b8 \
-    dnsutils=1:9.18.19-1~deb12u1 \
+    dnsutils=1:9.18.24-1 \
     ftp=20210827-4 \
     iperf=2.1.8+dfsg-1 \
     iperf3=3.12-1+deb12u1 \
@@ -37,7 +37,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     miniupnpc=2.2.4-1+b1 \
     webfs=1.21+ds1-12+b1 \
     wget=1.21.3-1+b2 \
-    wpasupplicant=2:2.10-12 \
+    wpasupplicant=2:2.10-12+deb12u1 \
     xinetd=1:2.3.15.3-1+b1 \
     xxd=2:9.0.1378-2 \
     && rm -rf /var/lib/apt/lists/*  && \
