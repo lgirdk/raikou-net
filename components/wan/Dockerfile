@@ -25,10 +25,10 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV DNS_UPSTREAM=8.8.8.8
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl=7.88.1-10+deb12u5 \
+    curl=7.88.1-10+deb12u6 \
     dante-server=1.4.2+dfsg-7+b8 \
     dnsmasq=2.89-1 \
-    dnsutils=1:9.18.19-1~deb12u1 \
+    dnsutils=1:9.18.24-1 \
     iperf=2.1.8+dfsg-1 \
     iperf3=3.12-1+deb12u1 \
     iproute2=6.1.0-3 \
