@@ -1,0 +1,33 @@
+#!/bin/bash
+exit_flag=false
+
+count=$((TIMEOUT/5))
+
+for i in $(seq 1 $count); do
+    if [ -z $(ls /sys/class/net | grep eth0) ]; then
+        echo "MGMT interface not found"
+        sleep 5
+        continue
+    fi
+    exit_flag=true
+    break
+done
+
+if [ $exit_flag == false ]; then
+    echo "Expected an eth0 interface in non-legacy mode"
+    exit 1
+fi
+
+mgmt_ip=$(ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
+mgmt_gw=$(ip route show default | grep -oP 'via \K.*(?=dev)')
+mgmt_nw=$(ip route show src $mgmt_ip | grep -oP '.* (?=dev)')
+
+echo "1 mgmt" >> /etc/iproute2/rt_tables
+ip route add default via $mgmt_gw table mgmt
+ip rule add from $mgmt_ip table mgmt
+ip rule add to $mgmt_ip table mgmt
+ip rule add from $mgmt_nw table mgmt
+ip rule add to $mgmt_nw table mgmt
+ip route del default
+
+echo "alias mgmt='BIND_ADDR=$mgmt_ip LD_PRELOAD=/usr/lib/bind.so '" >> /root/.bashrc
