@@ -39,28 +39,29 @@ _DB_JSON_PATH = Path("/tmp/db.json")  # noqa: S108
 _MAX_FAIL_COUNT = 2
 
 _DOCKER_SOCKET = Path("/var/run/docker.sock")
+_USE_LINUX_BRIDGE = os.environ.get("USE_LINUX_BRIDGE", False)
 
 
-class OVSParentInfo(TypedDict, total=False):
-    """Schema for OVS Parent details."""
+class ParentInfo(TypedDict, total=False):
+    """Schema for OVS/Linux Bridge parent interface details."""
 
     iface: str  # Optional, parent interface OVS speaks to
     native: str  # Optional, native VLAN for untagged packets
     trunk: str  # Optional, Comma separated VLAN ids
 
 
-class OVSBridgeInfo(TypedDict, total=False):
-    """Schema for OVS Bridge details."""
+class BridgeInfo(TypedDict, total=False):
+    """Schema for OVS/Linux Bridge details."""
 
-    parents: list[OVSParentInfo]
+    parents: list[ParentInfo]
     iprange: str  # Optional, subnet with prefix
     ip6range: str  # Optional, subnet with prefix
     ipaddress: str  # Optional, IPv4 address
     ip6address: str  # Optional, IPv6 address
 
 
-class OVSContainerInfo(TypedDict, total=False):
-    """Schema for OVS Container Interface Bridge details."""
+class ContainerInfo(TypedDict, total=False):
+    """Schema for Container Interface Bridge details."""
 
     iface: str  # Interface name inside of container.
     bridge: str  # Bridge name interface needs to be part of
@@ -151,13 +152,63 @@ def _veth_exists(veth_end: str) -> bool:
     return result.returncode == 0
 
 
-def _add_iface_to_bridge(bridge_name: str, parent_info: OVSParentInfo) -> None:
+def _add_iface_to_ovs_bridge(bridge_name: str, parent_info: ParentInfo) -> None:
+    # Check if the interface already exists
+    parent = parent_info.get("iface")
+    db_cache = _get_db().get(bridge_name, {})
+    parent_cache = db_cache.setdefault(parent, {})
+
+    check = _run_command(f"ovs-vsctl port-to-br {parent}", check=False)
+    if check.stdout.strip() != bridge_name:
+        _LOGGER.debug("Parent %s not part of OVS bridge %s", parent, bridge_name)
+        _run_command(f"ovs-vsctl --if-exists del-port {parent}", check=False)
+
+        cmd = f"ovs-vsctl --may-exist add-port {bridge_name} {parent}"
+
+        if trunk := parent_info.get("trunk"):
+            parent_cache["trunk"] = trunk
+            cmd = f"{cmd} trunk={trunk}"
+
+        if native_vlan := parent_info.get("native"):
+            parent_cache["native"] = native_vlan
+            cmd = f"{cmd} vlan_mode=native-untagged tag={native_vlan}"
+
+        _run_command(cmd)
+        _LOGGER.debug("parent %s up for OVS bridge %s", parent, bridge_name)
+
+
+def _add_iface_to_linux_bridge(bridge_name: str, parent_info: ParentInfo) -> None:
+    parent = parent_info.get("iface", "foo")
+    db_cache = _get_db().get(bridge_name, {})
+    parent_cache = db_cache.setdefault(parent, {})
+
+    check = _run_command(f"ip -o link show master {bridge_name}", check=False)
+    if parent not in check.stdout:
+        _LOGGER.debug("Parent %s not part of Linux bridge %s", parent, bridge_name)
+        _run_command(f"ip link set dev {parent} nomaster")
+
+        _run_command(f"brctl addif {bridge_name} {parent}")
+        _run_command(f"ip link set {bridge_name} type bridge vlan_filtering 1")
+
+    if trunk := parent_info.get("trunk"):
+        parent_cache["trunk"] = trunk
+        _run_command(f"bridge vlan delete dev {parent} vid 1")
+        for vid in trunk.split(","):
+            _run_command(f"bridge vlan add dev {parent} vid {vid}")
+
+    if native_vlan := parent_info.get("native"):
+        parent_cache["native"] = native_vlan
+        _run_command(f"bridge vlan delete dev {parent} vid 1")
+        _run_command(f"bridge vlan add dev {parent} vid {native_vlan} pvid untagged")
+
+
+def _add_iface_to_bridge(bridge_name: str, parent_info: ParentInfo) -> None:  # noqa: C901
     """Add a network interface to an OVS bridge.
 
     :param bridge_name: The name of the OVS bridge.
     :type bridge_name: str
-    :param parent_info: The OVS Parent details.
-    :type parent_info: OVSParentInfo
+    :param parent_info: The OVS/Linux bridge parent details.
+    :type parent_info: ParentInfo
     :raises ValueError: If more than usb-parent exist for provided ID.
     """
     db_cache = _get_db().get(bridge_name, {})
@@ -176,28 +227,13 @@ def _add_iface_to_bridge(bridge_name: str, parent_info: OVSParentInfo) -> None:
         parent = usb_info[0].split()[8]
 
     parent_cache = db_cache.setdefault(parent, {})
-    _LOGGER.debug("Trying to bring up parent %s for OVS bridge %s", parent, bridge_name)
+    _LOGGER.debug("Trying to bring up parent %s for bridge %s", parent, bridge_name)
     _run_command(f"ip link set {parent} up")
 
-    # Check if the interface already exists
-    check = _run_command(f"ovs-vsctl port-to-br {parent}", check=False)
-    if check.stdout.strip() != bridge_name:
-        _LOGGER.debug("Parent %s not part of OVS bridge %s", parent, bridge_name)
-        _run_command(f"ovs-vsctl --if-exists del-port {parent}", check=False)
-
-        cmd = f"ovs-vsctl --may-exist add-port {bridge_name} {parent}"
-
-        if trunk := parent_info.get("trunk"):
-            parent_cache["trunk"] = trunk
-            cmd = f"{cmd} trunk={trunk}"
-
-        if native_vlan := parent_info.get("native"):
-            parent_cache["native"] = native_vlan
-            cmd = f"{cmd} vlan_mode=native-untagged tag={native_vlan}"
-
-        _run_command(cmd)
-        _LOGGER.debug("parent %s up for OVS bridge %s", parent, bridge_name)
-        return
+    if _USE_LINUX_BRIDGE:
+        _add_iface_to_linux_bridge(bridge_name, parent_info)
+    else:
+        _add_iface_to_ovs_bridge(bridge_name, parent_info)
 
     for key, opt in [
         ("trunk", "trunk={}"),
@@ -206,11 +242,24 @@ def _add_iface_to_bridge(bridge_name: str, parent_info: OVSParentInfo) -> None:
         if (value := parent_info.get(key)) != parent_cache.get(key):
             _LOGGER.info("New %s %s setting applied for parent %s", key, value, parent)
             parent_cache[key] = value
-            _run_command(f"ovs-vsctl set port {parent} {opt.format(value)}")
+
+            if not value:
+                continue
+
+            if _USE_LINUX_BRIDGE:
+                _run_command(f"ip link set {bridge_name} type bridge vlan_filtering 1")
+                _run_command(f"bridge vlan delete dev {parent} vid 1")
+                for vid in str(value).split(","):
+                    cmd = f"bridge vlan add dev {parent} vid {vid}"
+                    if key == "native":
+                        cmd += " pvid untagged"
+                    _run_command(cmd)
+            else:
+                _run_command(f"ovs-vsctl set port {parent} {opt.format(value)}")
 
 
-def init_ovs_bridge(bridge_name: str, info: OVSBridgeInfo) -> None:
-    """Create an OVS bridge if it does not exist.
+def init_bridge(bridge_name: str, info: BridgeInfo) -> None:  # noqa: C901
+    """Create an OVS/Linux bridge if it does not exist.
 
     If a parent interface is provided as part of the OVS bridge info,
     then it shall be a member of the bridge.
@@ -219,14 +268,17 @@ def init_ovs_bridge(bridge_name: str, info: OVSBridgeInfo) -> None:
 
     :param bridge_name: OVS bridge name
     :type bridge_name: str
-    :param info: OVS bridge details
-    :type info: OVSBridgeInfo
+    :param info: OVS/Linux bridge details
+    :type info: BridgeInfo
     :raises ValueError: If IP address is already allocated/incorrect.
     """
     _LOGGER.debug("################## OVS BRIDGES #####################")
     db_cache = _get_db().setdefault(bridge_name, {})
 
-    _run_command(f"ovs-vsctl --may-exist add-br {bridge_name}")
+    cmd, check = f"ovs-vsctl --may-exist add-br {bridge_name}", True
+    if _USE_LINUX_BRIDGE:
+        cmd, check = f"brctl addbr {bridge_name}", False
+    _run_command(cmd, check)
     _run_command(f"ip link set {bridge_name} up")
 
     # Update bridge specific IP address range and Host details
@@ -370,14 +422,14 @@ def create_veth_pair(on_bridge: str, vlan_map: str) -> None:
 
 def add_iface_to_container(  # noqa: PLR0915, C901, PLR0912
     container_name: str,
-    info: OVSContainerInfo,
+    info: ContainerInfo,
 ) -> None:
     """Attach a container to a target OVS bridge.
 
     :param container_name: Target container to push the interface at
     :type container_name: str
     :param info: Container interface details
-    :type info: OVSContainerInfo
+    :type info: ContainerInfo
     :raises ValueError: If ipaddress syntax is incorrect.
     :raises IndexError: If DHCP range is exhausted.
     """
@@ -389,7 +441,9 @@ def add_iface_to_container(  # noqa: PLR0915, C901, PLR0912
         _LOGGER.debug("Container %s does not exist!", container_name)
         return
 
-    _LOGGER.debug("Container PID: %s", check.stdout.strip())
+    _LOGGER.debug("Container ID: %s", check.stdout.strip())
+
+    util = "ovs-docker" if not _USE_LINUX_BRIDGE else "lxbr-docker"
 
     bridge = info["bridge"]  # Mandatory
     db_cache = _get_db()[bridge]
@@ -398,7 +452,7 @@ def add_iface_to_container(  # noqa: PLR0915, C901, PLR0912
     vlan = info.get("vlan")
     trunk = info.get("trunk")
 
-    cmd = f"ovs-docker add-port {bridge} {iface} {container_name}"
+    cmd = f"{util} add-port {bridge} {iface} {container_name}"
     for ip_idx, gw_idx in (("ipaddress", "gateway"), ("ip6address", "gateway6")):
         family = (
             ipaddress.IPv4Interface
@@ -481,9 +535,7 @@ def add_iface_to_container(  # noqa: PLR0915, C901, PLR0912
     )
     if check.returncode == 0:
         _LOGGER.debug("iface %s exists inside container %s.", iface, container_name)
-        check = _run_command(
-            f"ovs-docker get-port {container_name} {iface}", check=False
-        )
+        check = _run_command(f"{util} get-port {container_name} {iface}", check=False)
         if bool(check.stdout.strip()):
             _LOGGER.debug(
                 "iface %s exists on OVS bridge: %s.",
@@ -506,9 +558,7 @@ def add_iface_to_container(  # noqa: PLR0915, C901, PLR0912
         # In that case we need to clean the container interface ourself.
         # NOTE: Add a way to not reload OVS kernel modules everytime to avoid this.
         _run_command(f"docker exec {container_name} ip link del {iface}", check=False)
-        _run_command(
-            f"ovs-docker del-port {bridge} {iface} {container_name}", check=False
-        )
+        _run_command(f"{util} del-port {bridge} {iface} {container_name}", check=False)
 
         _LOGGER.info("Removed iface %s from container: %s", iface, container_name)
     else:
@@ -516,9 +566,7 @@ def add_iface_to_container(  # noqa: PLR0915, C901, PLR0912
 
         # del the OVS mapped port
         # If container has lost its interface
-        _run_command(
-            f"ovs-docker del-port {bridge} {iface} {container_name}", check=False
-        )
+        _run_command(f"{util} del-port {bridge} {iface} {container_name}", check=False)
 
     _run_command(cmd)
     _LOGGER.info(
@@ -533,7 +581,7 @@ def add_iface_to_container(  # noqa: PLR0915, C901, PLR0912
     if vlan:
         _LOGGER.debug("VLAN tag read for %s:%s is %s", container_name, iface, vlan)
         run(
-            f"ovs-docker set-vlan {bridge} {iface} {container_name} " f"{vlan}".split(),
+            f"{util} set-vlan {bridge} {iface} {container_name} " f"{vlan}".split(),
             check=True,
             capture_output=True,
         )
@@ -544,8 +592,7 @@ def add_iface_to_container(  # noqa: PLR0915, C901, PLR0912
             "Trunk (%s) read for %s:%s on %s", trunk, container_name, iface, bridge
         )
         run(
-            f"ovs-docker set-trunk {bridge} {iface} {container_name} "
-            f"{trunk}".split(),
+            f"{util} set-trunk {bridge} {iface} {container_name} " f"{trunk}".split(),
             check=True,
             capture_output=True,
         )
@@ -554,13 +601,7 @@ def add_iface_to_container(  # noqa: PLR0915, C901, PLR0912
         )
 
 
-def main() -> None:
-    """Runner function."""
-    # Initial Check if docker socket is loaded.
-    if not _DOCKER_SOCKET.exists():
-        _LOGGER.error("Need to mount Docker socket!!")
-        sys.exit(1)
-
+def _check_ovs_module() -> None:
     # Initial check if openvswitch module is loaded.
     lsmod_out = run(["/bin/lsmod"], check=True, capture_output=True)
     try:
@@ -574,6 +615,19 @@ def main() -> None:
         _LOGGER.exception("Openvswitch kernel modules need to be mounted from host!!")
         sys.exit(1)
 
+
+def main() -> None:  # noqa: C901, PLR0912
+    """Runner function."""
+    # Initial Check if docker socket is loaded.
+    if not _DOCKER_SOCKET.exists():
+        _LOGGER.error("Need to mount Docker socket!!")
+        sys.exit(1)
+
+    if not _USE_LINUX_BRIDGE:
+        _check_ovs_module()
+    else:
+        _run_command("sysctl net.bridge.bridge-nf-call-iptables=0")
+
     config = json.load(Path("/root/config.json").open(encoding="UTF-8"))  # noqa: SIM115
 
     fail_count = _get_db().setdefault("failed", 0)
@@ -583,7 +637,7 @@ def main() -> None:
     try:
         # Initialize all parent bridges
         for bridge, info in config["bridge"].items():
-            init_ovs_bridge(bridge, info)
+            init_bridge(bridge, info)
 
         # Attach containers to parent bridges based on config.json
         for container, iface_info in config["container"].items():
@@ -591,11 +645,13 @@ def main() -> None:
                 add_iface_to_container(container, info)
 
         # Configure VLAN translations between bridges
-        for translation in config["vlan_translations"]:
-            create_veth_pair(
-                on_bridge=translation["on"],
-                vlan_map=translation["map"],
-            )
+        # Skipping VLAN translations for default linux bridges!
+        if not _USE_LINUX_BRIDGE:
+            for translation in config["vlan_translations"]:
+                create_veth_pair(
+                    on_bridge=translation["on"],
+                    vlan_map=translation["map"],
+                )
 
         # Introduce a sleep since supervisor can't add interval between restarts.
         time.sleep(10)

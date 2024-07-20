@@ -5,12 +5,12 @@ services:
         ports:
             - 4000:22
         environment:
-            ENABLE_NAT_ON: eth0
-            FRR_AUTO_CONF: yes   # yamllint disable-line rule:truthy
-            TRIPLE_PLAY: no   # yamllint disable-line rule:truthy
-            CPE_DATA_IFACE: cpe
-            CPE_DATA_BUNDLE: 10.1.1.1/24,2001:dead:cafe:1::1/64
-            DHCP_RELAY: eth1,172.25.1.20,2001:dead:beef:2::20
+            - ENABLE_NAT_ON=eth0
+            - FRR_AUTO_CONF=yes
+            - TRIPLE_PLAY=no
+            - CPE_DATA_IFACE=cpe
+            - CPE_DATA_BUNDLE=10.1.1.1/24,2001:dead:cafe:1::1/64
+            - DHCP_RELAY=eth1,172.25.1.20,2001:dead:beef:2::20
         build:
             context: ../../components/router
             tags:
@@ -41,8 +41,8 @@ services:
         ports:
             - 4001:22
         environment:
-            DNS_UPSTREAM: 172.30.180.2
-            LEGACY: no   # yamllint disable-line rule:truthy
+            - DNS_UPSTREAM=172.30.180.2
+            - LEGACY=no
         privileged: true
         hostname: wan
         depends_on:
@@ -57,7 +57,7 @@ services:
         ports:
             - 4002:22
         environment:
-            LEGACY: no   # yamllint disable-line rule:truthy
+            - LEGACY=no
         privileged: true
         hostname: lan
         depends_on:
@@ -72,7 +72,7 @@ services:
         ports:
             - 4003:22
         environment:
-            LEGACY: no   # yamllint disable-line rule:truthy
+            - LEGACY=no
         privileged: true
         hostname: dhcp
         volumes:
@@ -139,6 +139,8 @@ services:
             - /var/run/docker.sock:/var/run/docker.sock
             - ./config.json:/root/config.json
         privileged: true
+        environment:
+            - USE_LINUX_BRIDGE=false
         pid: host
         network_mode: host
         hostname: orchestrator
@@ -154,7 +156,7 @@ services:
         build:
             context: ../../components/ssh/
             tags:
-                - ssh:1.9.2p1
+                - ssh:v1.2.0
 
 volumes:
     data_db:
