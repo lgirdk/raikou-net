@@ -87,7 +87,7 @@ for IFACE_DATA in "${IFACE_REQUIRED[@]}"; do
     fi
 done
 
-sysctl -p /etc/sysctl.conf
+sysctl -p /etc/sysctl.conf || true
 
 echo "Starting daemons."
 for svc in $FRR_DAEMONS; do

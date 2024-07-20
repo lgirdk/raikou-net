@@ -1,8 +1,9 @@
 # Build Stage for bind.so
 FROM node:18-buster AS bind-build-stage
 
+# hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    wget=1.20.1-1.1 \
+    wget \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /root
@@ -22,12 +23,13 @@ RUN echo "root:bigfoot1" | chpasswd
 
 RUN mkdir /var/log/ssh
 
+# hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    openssh-server=1:7.9p1-10+deb10u4 \
-    iproute2=4.20.0-2+deb10u1 \
-    sudo=1.8.27-1+deb10u5 \
-    supervisor=3.3.5-1 \
-    git=1:2.20.1-2+deb10u8 \
+    openssh-server \
+    iproute2 \
+    sudo \
+    supervisor \
+    git \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir /var/run/sshd \
     && sed -i 's/.*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config \

@@ -23,19 +23,20 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 WORKDIR /root/
 
+# hadolint ignore=DL3008
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    iputils-ping=3:20210202-1 \
-    mariadb-server=1:10.5.23-0+deb11u1 \
-    net-tools=1.60+git20181103.0eebece-1 \
-    traceroute=1:2.1.0-2+deb11u1 \
-    dnsutils=1:9.16.48-1 \
-    sngrep=1.4.8-1 \
-    tcpdump=4.99.0-2+deb11u1 \
-    tshark=3.4.10-0+deb11u1 \
-    git=1:2.30.2-1+deb11u2 \
-    build-essential=12.9 \
-    openssh-server=1:8.4p1-5+deb11u3 \
+    iputils-ping \
+    mariadb-server \
+    net-tools \
+    traceroute \
+    dnsutils \
+    sngrep \
+    tcpdump \
+    tshark \
+    git \
+    build-essential \
+    openssh-server \
     && echo 'root:bigfoot1' | chpasswd \
     && sed -i 's/.*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config \
     && sed -i 's/.*Gateway Ports.*/GatewayPorts yes/' /etc/ssh/sshd_config \

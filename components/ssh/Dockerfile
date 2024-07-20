@@ -1,9 +1,10 @@
 # bind library build stage.
-FROM python:3.12.2-slim-bookworm AS build-stage
+FROM python:3.12.4-slim-bookworm AS build-stage
 
+# hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential=12.9 \
-    wget=1.21.3-1+b2 \
+    build-essential \
+    wget \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /root
@@ -17,7 +18,7 @@ RUN wget -q http://daniel-lange.com/software/bind.c -O bind.c \
 
 
 # Debian SSH server start from here.
-FROM python:3.12.2-slim-bookworm
+FROM python:3.12.4-slim-bookworm
 
 LABEL maintainer="ktewari@libertyglobal.com"
 LABEL version="1.9.2p1"
@@ -25,9 +26,10 @@ LABEL version="1.9.2p1"
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN echo "root:bigfoot1" | chpasswd
 
+# hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    openssh-server=1:9.2p1-2+deb12u3 \
-    iproute2=6.1.0-3 \
+    openssh-server \
+    iproute2 \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir /var/run/sshd \
     && sed -i 's/.*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config \

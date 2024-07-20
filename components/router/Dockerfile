@@ -1,7 +1,7 @@
-FROM ssh:1.9.2p1
+FROM ssh:v1.2.0
 
 LABEL maintainer="ktewari@libertyglobal.com"
-LABEL version="frr_9.0"
+LABEL version="frr_10.0"
 
 # Install packages required for the following repositories.
 ENV DEBIAN_FRONTEND=noninteractive
@@ -47,17 +47,19 @@ COPY ./resources/staticd.conf .
 COPY ./resources/init .
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+# hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git=1:2.39.2-1.1 \
-    autoconf=2.71-3 \
-    automake=1:1.16.5-1.3 \
-    flex=2.6.4-8.2 \
-    bison=2:3.8.2+dfsg-1+b1 \
-    curl=7.88.1-10+deb12u6 \
-    ca-certificates=20230311 \
-    gnupg=2.2.40-1.1 \
-    lsb-release=12.0-1 \
-    build-essential=12.9 && \
+    git \
+    autoconf \
+    automake \
+    flex \
+    bison \
+    curl \
+    ca-certificates \
+    gnupg \
+    lsb-release \
+    build-essential && \
     \
     # Add FRR source list for JAMMY release
     curl -s https://deb.frrouting.org/frr/keys.gpg | tee \
@@ -68,18 +70,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     -a /etc/apt/sources.list.d/frr.list && \
     \
     apt-get update && apt-get install -y --no-install-recommends \
-    dnsutils=1:9.18.24-1 \
-    iproute2=6.1.0-3 \
-    iptables=1.8.9-2 \
-    iputils-ping=3:20221126-1 \
-    isc-dhcp-relay=4.4.3-p1-2 \
-    net-tools=2.10-0.1 \
-    frr=10.0.1-0~deb12u1 \
-    frr-pythontools=10.0.1-0~deb12u1 \
-    telnet=0.17+2.4-2+deb12u1 \
-    tcpdump=4.99.3-1 \
-    smcroute=2.5.6-1 \
-    traceroute=1:2.1.2-1 && \
+    dnsutils \
+    iproute2 \
+    iptables \
+    iputils-ping \
+    isc-dhcp-relay \
+    net-tools \
+    frr \
+    frr-pythontools \
+    telnet \
+    tcpdump \
+    smcroute \
+    traceroute && \
     \
     ## Fix "the END problem" in Quagga vtysh
     echo VTYSH_PAGER=more >> /etc/environment && \
@@ -104,16 +106,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     sed -i "s/#precedence ::ffff:0:0\/96  100/precedence ::ffff:0:0\/96  100/" /etc/gai.conf && \
     ## Purge Files
     apt-get purge -y \
-    git=1:2.39.2-1.1 \
-    autoconf=2.71-3 \
-    automake=1:1.16.5-1.3 \
-    flex=2.6.4-8.2 \
-    bison=2:3.8.2+dfsg-1+b1 \
-    curl=7.88.1-10+deb12u6 \
-    ca-certificates=20230311 \
-    gnupg=2.2.40-1.1 \
-    lsb-release=12.0-1 \
-    build-essential=12.9 && \
+    git \
+    autoconf \
+    automake \
+    flex \
+    bison \
+    curl \
+    ca-certificates \
+    gnupg \
+    lsb-release \
+    build-essential && \
     apt-get -y autoremove && \
     # Clear Cache
     rm -rf /var/lib/apt/lists/* && \
