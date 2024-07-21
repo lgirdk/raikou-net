@@ -3,7 +3,7 @@ if [ "$LEGACY" == "no" ]; then
     isolate_docker_iface
 fi
 
-count=$((TIMEOUT/10))
+count=$((TIMEOUT/5))
 for _i in $(seq 1 $count); do
     if ! find /sys/class/net | grep -q -w eth1 ; then
         echo "eth1 interface not found"
@@ -64,5 +64,5 @@ fi
 service tftpd-hpa start;
 service lighttpd start;
 service dnsmasq start;
-serice danted start
+service danted start
 /usr/sbin/sshd -D
