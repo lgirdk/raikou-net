@@ -1,10 +1,39 @@
 #!/bin/bash
-exit_flag=false
-
-if [ $LEGACY == "no" ]; then
+if [ "$LEGACY" == "no" ]; then
     isolate_docker_iface
 fi
 
+count=$((TIMEOUT/10))
+for _i in $(seq 1 $count); do
+    if ! find /sys/class/net | grep -q -w eth1 ; then
+        echo "eth1 interface not found"
+        sleep 5
+        continue
+    fi
+    break
+done
+
+cat > /etc/danted.conf << EOF
+logoutput: stderr
+internal: 0.0.0.0 port = 8080
+external: eth1
+clientmethod: none
+socksmethod: username none #rfc931
+user.privileged: root
+user.unprivileged: nobody
+user.libwrap: nobody
+client pass {
+    from: 0.0.0.0/0 to: 0.0.0.0/0
+    log: connect disconnect error
+}
+socks pass {
+    from: 0.0.0.0/0 to: 0.0.0.0/0
+    log: connect disconnect error
+}
+EOF
+
 service tftpd-hpa start
 service lighttpd start
+serice danted start
+
 /usr/sbin/sshd -D

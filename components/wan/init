@@ -1,10 +1,17 @@
 #!/bin/bash
-if [ $LEGACY == "no" ]; then
+if [ "$LEGACY" == "no" ]; then
     isolate_docker_iface
 fi
 
-service tftpd-hpa start;
-service lighttpd start;
+count=$((TIMEOUT/10))
+for _i in $(seq 1 $count); do
+    if ! find /sys/class/net | grep -q -w eth1 ; then
+        echo "eth1 interface not found"
+        sleep 5
+        continue
+    fi
+    break
+done
 
 # Loading default conf values assuming interface eth1 will be brought up
 cat > /etc/dnsmasq.conf << EOF
@@ -30,10 +37,32 @@ DNSMASQ_HOSTS=$(cat << EOF
 EOF
 )
 
+cat > /etc/danted.conf << EOF
+logoutput: stderr
+internal: 0.0.0.0 port = 8080
+external: eth1
+clientmethod: none
+socksmethod: username none #rfc931
+user.privileged: root
+user.unprivileged: nobody
+user.libwrap: nobody
+client pass {
+    from: 0.0.0.0/0 to: 0.0.0.0/0
+    log: connect disconnect error
+}
+socks pass {
+    from: 0.0.0.0/0 to: 0.0.0.0/0
+    log: connect disconnect error
+}
+EOF
+
 # Loading default host values based on DHCP configuration
 if [ ! -f /etc/dnsmasq.hosts ]; then
     cat > /etc/dnsmasq.hosts <<< "$DNSMASQ_HOSTS"
 fi
 
+service tftpd-hpa start;
+service lighttpd start;
 service dnsmasq start;
+serice danted start
 /usr/sbin/sshd -D

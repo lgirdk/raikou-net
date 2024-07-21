@@ -29,6 +29,7 @@ services:
         image: 10.64.38.13:5000/raikou-wan
         ports:
             - 4001:22
+            - 8001:8080
         environment:
             DNS_UPSTREAM: 172.30.180.2
             LEGACY: no # yamllint disable-line rule:truthy
@@ -42,6 +43,7 @@ services:
         image: 10.64.38.13:5000/raikou-lan
         ports:
             - 4002:22
+            - 8002:8080
         environment:
             LEGACY: no # yamllint disable-line rule:truthy
         privileged: true
