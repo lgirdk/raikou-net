@@ -110,6 +110,3 @@ repos:
       rev: v2.13.0-beta
       hooks:
           - id: hadolint
-      ignored:
-          - DL3008
-          - DL3018

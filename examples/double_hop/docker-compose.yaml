@@ -22,6 +22,7 @@ services:
 
     cpe:
         container_name: cpe
+        restart: always
         build:
             context: ../../components/cpe/prplos
             tags:
@@ -142,7 +143,7 @@ services:
             - ./config.json:/root/config.json
         privileged: true
         environment:
-            - USE_LINUX_BRIDGE=false
+            - USE_LINUX_BRIDGE=true
         pid: host
         network_mode: host
         hostname: orchestrator
@@ -164,6 +165,7 @@ volumes:
     data_db:
     data_configdb:
     opt_volume:
+
 
 networks:
     default:
