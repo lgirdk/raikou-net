@@ -5,6 +5,7 @@ LABEL version="kea-2-6"
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
+ENV DEBIAN_FRONTEND=noninteractive
 # Install essential packages
 # hadolint ignore=DL3008
 RUN apt-get update && \
