@@ -529,7 +529,6 @@ def add_iface_to_container(  # noqa: PLR0915, C901, PLR0912
         cmd = f"{cmd} --macaddress={macaddress}"
 
     # check if iface exists already inside the container
-    # NOTE: at this point we're really not getting into validating IP/MAC addresses.
     check = _run_command(
         f"docker exec {container_name} ip link show {iface}", check=False
     )
@@ -542,7 +541,14 @@ def add_iface_to_container(  # noqa: PLR0915, C901, PLR0912
                 iface,
                 check.stdout.strip(),
             )
-            _LOGGER.debug("Nothing to do here!")
+            check = _run_command(
+                f"docker exec {container_name} ip link show dev {iface}", check=False
+            )
+            if macaddress.lower() not in check.stdout:
+                _run_command(
+                    f"docker exec {container_name} ip link set dev {iface} addr {macaddress}",
+                    check=False,
+                )
             return
 
         # Found a corner case
