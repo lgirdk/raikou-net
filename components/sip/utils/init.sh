@@ -22,11 +22,13 @@ CFGFILE=/etc/kamailio/kamailio.cfg
 EOF
 
 service mariadb start
+sed -i "s/table = 0/table = -1/" /etc/rtpengine/rtpengine.conf
+
+sysctl net.ipv6.conf.lo.disable_ipv6=0
+killall -9 rtpengine
+rtpengine --listen-ng=localhost:2223 --log-stderr -m 2000 -M 60000  --interface=any
 
 ./db_creation.sh
-
-rtpproxy -F -s udp:localhost:7723
-rtpproxy -F -s udp6:localhost:7722
 
 sed -i "s/kam_listen_ipv4/udp:$KAM_LISTEN_IPv4:5060/" /etc/kamailio/kamailio.cfg
 sed -i "s/kam_listen_ipv6/udp:[$KAM_LISTEN_IPv6]:5060/" /etc/kamailio/kamailio.cfg
