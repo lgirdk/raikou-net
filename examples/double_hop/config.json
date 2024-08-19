@@ -42,12 +42,6 @@
                 "iface": "eth1"
             }
         ],
-        "mongo": [
-            {
-                "bridge": "rtr-wan",
-                "iface": "eth1"
-            }
-        ],
         "router": [
             {
                 "bridge": "cpe-rtr",
