@@ -21,6 +21,7 @@ RUN apt-get update && \
     build-essential \
     iproute2 \
     openssh-server \
+    isc-dhcp-client \
     git \
     iputils-ping \
     net-tools\
@@ -47,5 +48,8 @@ RUN echo "#define PJ_HAS_IPV6 1" > ./pjlib/include/pj/config_site.h \
     build-essential
 
 WORKDIR /root/
+
+COPY ./resources/dhclient-script /sbin/dhclient-script
+COPY ./resources/dhclient.conf /etc/dhcp/dhclient.conf
 
 CMD [ "/root/init.sh" ]
