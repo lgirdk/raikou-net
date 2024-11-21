@@ -24,8 +24,17 @@ interface=eth1
 addn-hosts=/etc/dnsmasq.hosts
 EOF
 
+if [ "$AFTR_EP" ]; then
+    ep_ip=$(echo "$AFTR_EP" | cut -d'/' -f1)
+    AFTR_ENTRY=$(cat << EOF
+${ep_ip} aftr.boardfarm.com
+EOF
+)
+else
+        echo "AFTR endpoint address is not provided, aftr process will not run"
+fi
+
 DNSMASQ_HOSTS=$(cat << EOF
-4003:1::1 aftr.boardfarm.com
 172.25.1.101 wan.boardfarm.com
 2001:dead:beef:2::101 wan.boardfarm.com
 2001:dead:beef:2::40 acs_server.boardfarm.com
@@ -56,13 +65,36 @@ socks pass {
 }
 EOF
 
+if [ "$AFTR_ENTRY" ]; then
+        DNSMASQ_HOSTS="$DNSMASQ_HOSTS"$'\n'${AFTR_ENTRY}
+fi
+
 # Loading default host values based on DHCP configuration
 if [ ! -f /etc/dnsmasq.hosts ]; then
     cat > /etc/dnsmasq.hosts <<< "$DNSMASQ_HOSTS"
+fi
+
+#updating aftr configuration
+
+if [ "$AFTR_EP" ]; then
+        sed -i "s|address endpoint|address endpoint ${ep_ip}|g" /root/aftr/aftr.conf
+
+        declare -a acl_list=($AFTR_ACL)
+        for acl in $(echo $acl_list | sed "s/,/ /g");do
+            declare acl6="acl6 $acl"
+            sed -i "/All IPv6 ACLs/a  $acl6" /root/aftr/aftr.conf
+        done
+
+        net_acl=$(echo ${acl_list[@]} | awk -F, '{print $NF}')
+        sed -i "s|ip -6 route add|ip -6 route add ${net_acl} dev tun0|g" /root/aftr/aftr-script
+
+        chmod +x /root/aftr/aftr-script
+        /root/aftr/aftr -c /root/aftr/aftr.conf -s /root/aftr/aftr-script
 fi
 
 service tftpd-hpa start;
 service lighttpd start;
 service dnsmasq start;
 service danted start
+
 /usr/sbin/sshd -D

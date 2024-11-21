@@ -25,6 +25,9 @@ LABEL version="lwds_lite_1.0"
 ENV DEBIAN_FRONTEND=noninteractive
 ENV DNS_UPSTREAM=8.8.8.8
 
+ENV AFTR_EP=""
+ENV AFTR_ACL=""
+
 # hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
@@ -62,6 +65,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /root/aftr /root/aftr
 COPY ./resources/configs/tftpd-hpa/tftpd-hpa.conf /etc/default/tftpd-hpa
 COPY ./init /root/init
+COPY ./resources/configs/aftr/aftr.conf /root/aftr/aftr.conf
+COPY ./resources/configs/aftr/aftr-script /root/aftr/aftr-script
 
 EXPOSE 69/udp
 EXPOSE 80/tcp
