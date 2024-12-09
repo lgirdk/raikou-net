@@ -38,7 +38,6 @@ from app.utils import (
     get_db,
     get_logger,
     get_usb_interface,
-    hash_string,
     run_command,
 )
 
@@ -173,14 +172,19 @@ def create_veth_pair(on_bridge: str, prefix: str, vlan_map: str = ":") -> None:
     :type prefix: str
     :param vlan_map: Optional, VLAN mapping in the format "source_vlan:dest_vlan".
     :type vlan_map: str
+    :raises ValueError: if prefix length is more than 8 characters
     """
     _LOGGER.debug("################## VLAN TRANSLATION #####################")
+    prefix_length = 8
+    if len(prefix) > prefix_length:
+        msg = f"VETH prefix: {prefix} cannot be more than 8 characters."
+        raise ValueError(msg)
 
-    # Check if veth pair already exists
     veth0 = f"v0_{prefix}"
     veth1 = f"v1_{prefix}"
     _LOGGER.debug("VETH pair entry: %s <--> %s", veth0, veth1)
 
+    # Check if veth pair already exists
     # We will always check the C-VLAN veth endpoint.
     if not veth_exists(veth0):
         # Create veth pair
@@ -280,6 +284,7 @@ def add_iface_to_container(  # noqa: C901
         cmd = f"{cmd} --{address_key}={ipaddr}"
 
     for key in ["macaddress", "gateway", "gateway6"]:
+        # Note: add a check here to ensure that
         if value := info.get(key, ""):
             cmd = f"{cmd} --{key}={value}"
 
@@ -319,16 +324,14 @@ def main() -> None:
                 add_iface_to_container(container, info)
 
         # Configure VLAN translations between bridges
+        # Create dangling veth pairs
         # Skipping VLAN translations for default linux bridges!
         if not USE_LINUX_BRIDGE:
-            for translation in config["vlan_translations"]:
-                # Split VLAN map
-                vlan_map = translation["map"]
-                vlan_hash = hash_string(vlan_map)
+            for prefix, translation in config.get("veth_pairs", {}).items():
                 create_veth_pair(
                     on_bridge=translation["on"],
-                    prefix=vlan_hash,
-                    vlan_map=translation["map"],
+                    prefix=prefix,
+                    vlan_map=translation.get("map", ":"),
                 )
 
         # Introduce a sleep since supervisor can't add interval between restarts.
