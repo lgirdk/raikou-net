@@ -102,6 +102,117 @@ def configure_lxbr_vlan_port(
         run_command(cmd)
 
 
+def remove_linux_bridge_vlan(iface: str, vid: str) -> bool:
+    """Remove or reset the specified VLAN setting from a Linux bridge interface.
+
+    This function checks the current VLAN setting on a Linux bridge interface. If the
+    current value does not match the provided `vid`, it removes or resets
+    the VLAN settings (trunk, native, or tagged VLAN) for the specified interface.
+
+    :param iface: The network interface from which to remove the VLAN setting.
+    :type iface: str
+    :param vid: The VLAN ID to be removed.
+    :type vid: str
+    :return: True if VLAN settings were removed, False if there was no change.
+    :rtype: bool
+    """
+    # Determine the current VLAN settings on the interface using `bridge vlan`
+    check = run_command(f"bridge vlan show dev {iface}", check=False)
+
+    if not check.stdout.strip():
+        _LOGGER.debug("No VLAN settings found on iface %s", iface)
+        return True
+
+    # Split the expected and actual VLANs
+    expected_values = set(vid.split(","))
+    actual_values = [
+        re.findall(r"\d+", li).pop()
+        for li in check.stdout.strip().splitlines()[1:]
+        if re.findall(r"\d+", li)
+    ]
+
+    # Find any VLANs that exist but aren't expected
+    actual_value_set = set(actual_values)
+    to_remove = actual_value_set - expected_values
+
+    # If all actual values are as expected, no need to remove anything
+    if not to_remove:
+        _LOGGER.info(
+            "Current VLAN settings for iface %s match the expected: %s",
+            iface,
+            actual_values,
+        )
+        return False
+
+    _LOGGER.info("VLAN settings to be removed from iface %s: %s", iface, to_remove)
+
+    # Remove any VLANs that are not in the expected values
+    for vlan_id in to_remove:
+        _LOGGER.info("Removing VLAN: %s from iface %s", vlan_id, iface)
+        cmd = f"bridge vlan del vid {vlan_id} dev {iface}"
+        run_command(cmd)
+
+    return True
+
+
+def remove_ovs_vlan_port(parent: str, vlan_type: str, vid: str) -> bool:
+    """Remove or reset the specified VLAN setting from the OVS port if the value differs.
+
+    This function checks the current VLAN setting on the OVS port. If the
+    current value does not match the provided `value`, it removes or resets
+    the VLAN settings (trunk, native, or tagged VLAN) for the specified interface
+    on the OVS bridge.
+
+    :param parent: The interface (port) from which to remove the VLAN setting.
+    :type parent: str
+    :param vlan_type: The VLAN setting type (trunk, native, vlan).
+    :type vlan_type: str
+    :param vid: The value of the VLAN setting to be removed.
+    :type vid: str
+    :return: True if VLAN settings were removed.
+    :rtype: bool
+    """
+    # Get the current configuration for the port
+    if vlan_type == "trunk":
+        check = run_command(f"ovs-vsctl get port {parent} trunks", check=False)
+        current_value = re.findall(r"\d+", check.stdout.strip())
+        _LOGGER.debug("Current trunk VLAN for port %s is %s", parent, current_value)
+    elif vlan_type in ("native", "vlan"):
+        check = run_command(f"ovs-vsctl get port {parent} tag", check=False)
+        current_value = re.findall(r"\d+", check.stdout.strip())
+        _LOGGER.debug("Current tag VLAN for port %s is %s", parent, current_value)
+
+    # if there is no setting, then there was nothing to remove.
+    if not current_value:
+        return True
+
+    # Check if the current value differs from the one we want to remove
+    if set(current_value) == set(re.findall(r"\d+", vid)):
+        _LOGGER.info(
+            "No need to remove %s VLAN setting %s for port %s, already set",
+            vlan_type,
+            vid,
+            parent,
+        )
+        return False
+
+    # Remove the VLAN configuration only if it doesn't match
+    if vlan_type == "trunk":
+        _LOGGER.debug("Removing trunk VLAN setting from port %s", parent)
+        run_command(f"ovs-vsctl remove port {parent} trunks {','.join(current_value)}")
+    elif vlan_type in ("native", "vlan"):
+        _LOGGER.debug("Removing VLAN tag setting from port %s", parent)
+        run_command(f"ovs-vsctl remove port {parent} tag {','.join(current_value)}")
+
+    _LOGGER.info(
+        "%s VLAN setting %s removed from port %s",
+        vlan_type.capitalize(),
+        current_value,
+        parent,
+    )
+    return True
+
+
 def create_bridge(bridge_name: str) -> None:
     """Create an OVS or Linux bridge.
 
@@ -119,6 +230,15 @@ def create_bridge(bridge_name: str) -> None:
     if bridge_check.returncode == 0:
         _LOGGER.debug("Bridge %s already exists", bridge_name)
         return
+
+    # This means that the interface was part of the wrong module
+    # eg. if the interface was part of linux when meant to be part of OVS
+    if run_command(f"ip link show dev {bridge_name}", check=False).returncode == 0:
+        _LOGGER.debug("Bridge %s already exists but not on right module", bridge_name)
+        run_command(f"ip link set {bridge_name} down")
+        run_command(f"ovs-vsctl del-br {bridge_name}", check=False)
+        run_command(f"brctl delbr {bridge_name}", check=False)
+        _LOGGER.info("Removed redundant Bridge %s", bridge_name)
 
     # Bridge doesn't exist, create it
     cmd, check = f"ovs-vsctl --may-exist add-br {bridge_name}", True
@@ -154,10 +274,13 @@ def add_iface_to_ovs_bridge(bridge_name: str, iface_info: IfaceInfo) -> None:
         _LOGGER.debug("parent %s up for OVS bridge %s", parent, bridge_name)
 
     for key in ["trunk", "native", "vlan"]:
-        if (value := iface_info.get(key)) and value != iface_cache.get(key):
+        value = iface_info.get(key)
+        cleaned_something = remove_ovs_vlan_port(parent, key, str(value))
+        if value and value != iface_cache.get(key):
             _LOGGER.info("New %s %s setting applied for parent %s", key, value, parent)
             iface_cache[key] = value
-            configure_ovs_vlan_port(parent, key, str(value))
+            if cleaned_something:
+                configure_ovs_vlan_port(parent, key, str(value))
 
 
 def add_iface_to_linux_bridge(bridge_name: str, iface_info: IfaceInfo) -> None:
@@ -186,7 +309,8 @@ def add_iface_to_linux_bridge(bridge_name: str, iface_info: IfaceInfo) -> None:
         if (value := iface_info.get(key)) and value != iface_cache.get(key):
             _LOGGER.info("New %s %s setting applied for parent %s", key, value, parent)
             iface_cache[key] = value
-            configure_lxbr_vlan_port(bridge_name, parent, key, str(value))
+            if remove_linux_bridge_vlan(parent, str(value)):
+                configure_lxbr_vlan_port(bridge_name, parent, key, str(value))
 
 
 def check_interface_exists(
@@ -260,7 +384,7 @@ def configure_container_vlan(container_name: str, info: ContainerInfo) -> None:
     iface = info["iface"]  # Mandatory
 
     for vlan_mode in ("vlan", "trunk"):
-        if value := info.get("vlan"):
+        if value := info.get(vlan_mode):
             _LOGGER.debug(
                 "%s read for %s:%s is %s", vlan_mode, container_name, iface, value
             )
