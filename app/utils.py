@@ -225,3 +225,29 @@ def auto_allocate_ip(bridge_name: str, container_name: str, family: str = "ip") 
 
     msg = f"Failed to automatically allocate an IP to container: {container_name}"
     raise IndexError(msg)
+
+
+def validate_bridge(bridge_name: str, info: BridgeInfoDict) -> bool:
+    """Validate if a bridge already exists in the database.
+
+    If any of its parent interfaces are already part of the existing bridge,
+    then the validation fails
+
+    :param bridge_name: The name of the bridge to be validated.
+    :param info: A dictionary containing the bridge's information,
+                 including its parent interfaces.
+    :return: True if the bridge does not exist or
+             no parent interfaces are conflicting,
+             False otherwise.
+    """
+    if bridge := get_db(bridge_name):
+        _LOGGER.debug("Bridge Already exists: %s", bridge_name)
+        for parent in info["parents"]:
+            if parent["iface"] in bridge:
+                _LOGGER.error(
+                    "iface %s exists in bridge: %s",
+                    parent["iface"],
+                    bridge_name,
+                )
+                return False
+    return True
