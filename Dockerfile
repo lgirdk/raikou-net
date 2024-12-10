@@ -6,8 +6,9 @@ LABEL version="alpine3.20-dind-27.3.1"
 WORKDIR /root
 
 COPY ./app app
+COPY ./util/init app/init
 
-# hadolint ignore=DL3018
+# hadolint ignore=DL3018,DL3013
 RUN apk add -u --no-cache \
     openvswitch \
     kmod \
@@ -17,8 +18,11 @@ RUN apk add -u --no-cache \
     uuidgen \
     iproute2 \
     bridge-utils \
+    py3-pydantic \
+    pipx \
     supervisor && \
     \
+    pipx install uvicorn fastapi && pipx ensurepath && \
     # Configure SSH key
     /usr/bin/ssh-keygen -t rsa -b 4096 -N '' -f /etc/ssh/ssh_host_rsa_key && \
     sed -i 's,#PermitRootLogin.*$,PermitRootLogin yes,1' /etc/ssh/sshd_config && \

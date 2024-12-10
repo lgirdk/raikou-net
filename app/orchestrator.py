@@ -30,9 +30,9 @@ from app.utils import (
     DOCKER_SOCKET,
     MAX_FAIL_COUNT,
     USE_LINUX_BRIDGE,
-    BridgeInfo,
-    ContainerInfo,
-    IfaceInfo,
+    BridgeInfoDict,
+    ContainerInfoDict,
+    IfaceInfoDict,
     auto_allocate_ip,
     check_container_exists,
     get_db,
@@ -44,13 +44,13 @@ from app.utils import (
 _LOGGER = get_logger("orchestrator")
 
 
-def _add_iface_to_bridge(bridge_name: str, parent_info: IfaceInfo) -> None:
+def _add_iface_to_bridge(bridge_name: str, parent_info: IfaceInfoDict) -> None:
     """Add a network interface to an OVS bridge.
 
     :param bridge_name: The name of the OVS bridge.
     :type bridge_name: str
     :param parent_info: The OVS/Linux bridge parent details.
-    :type parent_info: IfaceInfo
+    :type parent_info: IfaceInfoDict
     """
     if (parent := parent_info.get("iface")) is None:
         _LOGGER.debug("Invalid Entry: %s \nSkipping ..", str(parent_info))
@@ -68,7 +68,7 @@ def _add_iface_to_bridge(bridge_name: str, parent_info: IfaceInfo) -> None:
         add_iface_to_ovs_bridge(bridge_name, parent_info)
 
 
-def init_bridge(bridge_name: str, info: BridgeInfo) -> None:
+def init_bridge(bridge_name: str, info: BridgeInfoDict) -> None:
     """Create an OVS/Linux bridge if it does not exist.
 
     If a parent interface is provided as part of the OVS bridge info,
@@ -79,7 +79,7 @@ def init_bridge(bridge_name: str, info: BridgeInfo) -> None:
     :param bridge_name: OVS bridge name
     :type bridge_name: str
     :param info: OVS/Linux bridge details
-    :type info: BridgeInfo
+    :type info: BridgeInfoDict
     :raises ValueError: If IP address is already allocated/incorrect.
     """
     _LOGGER.debug("################## OVS BRIDGES #####################")
@@ -225,14 +225,14 @@ def create_veth_pair(on_bridge: str, prefix: str, vlan_map: str = ":") -> None:
 
 def add_iface_to_container(  # noqa: C901
     container_name: str,
-    info: ContainerInfo,
+    info: ContainerInfoDict,
 ) -> None:
     """Attach a container to a target OVS bridge.
 
     :param container_name: Target container to push the interface at
     :type container_name: str
     :param info: Container interface details
-    :type info: ContainerInfo
+    :type info: ContainerInfoDict
     :raises ValueError: If ipaddress syntax is incorrect.
     """
     _LOGGER.debug("###################ADD IFACE TO CONTAINERS######################")

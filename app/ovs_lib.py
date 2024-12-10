@@ -10,8 +10,8 @@ from subprocess import CalledProcessError, run
 
 from app.utils import (
     USE_LINUX_BRIDGE,
-    ContainerInfo,
-    IfaceInfo,
+    ContainerInfoDict,
+    IfaceInfoDict,
     get_db,
     get_logger,
     run_command,
@@ -249,7 +249,7 @@ def create_bridge(bridge_name: str) -> None:
     _LOGGER.info("Bridge %s created and brought up", bridge_name)
 
 
-def add_iface_to_ovs_bridge(bridge_name: str, iface_info: IfaceInfo) -> None:
+def add_iface_to_ovs_bridge(bridge_name: str, iface_info: IfaceInfoDict) -> None:
     """Add a parent/native interface to an OVS bridge.
 
     Use this to allow access to public network via your OVS bridge.
@@ -259,7 +259,7 @@ def add_iface_to_ovs_bridge(bridge_name: str, iface_info: IfaceInfo) -> None:
     :param bridge_name: Name of the OVS bridge
     :type bridge_name: str
     :param iface_info: Host interface details
-    :type iface_info: IfaceInfo
+    :type iface_info: IfaceInfoDict
     """
     # Check if the interface already exists
     parent = iface_info.get("iface", "")
@@ -283,7 +283,7 @@ def add_iface_to_ovs_bridge(bridge_name: str, iface_info: IfaceInfo) -> None:
                 configure_ovs_vlan_port(parent, key, str(value))
 
 
-def add_iface_to_linux_bridge(bridge_name: str, iface_info: IfaceInfo) -> None:
+def add_iface_to_linux_bridge(bridge_name: str, iface_info: IfaceInfoDict) -> None:
     """Add a parent/native interface to an Linux bridge.
 
     Use this to allow access to public network via your Linux bridge.
@@ -293,7 +293,7 @@ def add_iface_to_linux_bridge(bridge_name: str, iface_info: IfaceInfo) -> None:
     :param bridge_name: Name of the OVS bridge
     :type bridge_name: str
     :param iface_info: Host interface details
-    :type iface_info: IfaceInfo
+    :type iface_info: IfaceInfoDict
     """
     parent = iface_info.get("iface", "")
     db_cache = get_db(bridge_name)
@@ -361,7 +361,7 @@ def check_interface_exists(
     return False
 
 
-def configure_container_vlan(container_name: str, info: ContainerInfo) -> None:
+def configure_container_vlan(container_name: str, info: ContainerInfoDict) -> None:
     """Configure VLAN or trunk settings for a container's interface on a bridge.
 
     This function configures the VLAN or trunk settings for a container's interface
@@ -377,7 +377,7 @@ def configure_container_vlan(container_name: str, info: ContainerInfo) -> None:
                  - `iface`: The name of the interface to configure (str).
                  - `vlan`: Optional. The VLAN ID to set (str or int).
                  - `trunk`: Optional. The trunk configuration to set (str).
-    :type info: ContainerInfo
+    :type info: ContainerInfoDict
     """
     util = "ovs-docker" if not USE_LINUX_BRIDGE else "lxbr-docker"
     bridge = info["bridge"]  # Mandatory

@@ -26,7 +26,7 @@ T = TypeVar("T")
 
 
 # TypedDict schemas for network configurations
-class IfaceInfo(TypedDict, total=False):
+class IfaceInfoDict(TypedDict, total=False):
     """Schema for OVS/Linux Bridge parent interface details."""
 
     iface: str  # Optional, parent interface OVS speaks to
@@ -35,17 +35,17 @@ class IfaceInfo(TypedDict, total=False):
     vlan: str  # Optional, access VLAN
 
 
-class BridgeInfo(TypedDict, total=False):
+class BridgeInfoDict(TypedDict, total=False):
     """Schema for OVS/Linux Bridge details."""
 
-    parents: list[IfaceInfo]
+    parents: list[IfaceInfoDict]
     iprange: str  # Optional, subnet with prefix
     ip6range: str  # Optional, subnet with prefix
     ipaddress: str  # Optional, IPv4 address
     ip6address: str  # Optional, IPv6 address
 
 
-class ContainerInfo(TypedDict, total=False):
+class ContainerInfoDict(TypedDict, total=False):
     """Schema for Container Interface Bridge details."""
 
     iface: str  # Interface name inside of container.
