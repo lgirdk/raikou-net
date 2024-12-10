@@ -251,3 +251,28 @@ def validate_bridge(bridge_name: str, info: BridgeInfoDict) -> bool:
                 )
                 return False
     return True
+
+
+def validate_container(container_id: str, info: ContainerInfoDict) -> bool:
+    """Validate if the specified container's interface already exists.
+
+    This function checks whether the given container's interface (`iface`)
+    is already present for the specified container in the associated bridge.
+    If the interface exists, it logs an error and returns `False`.
+
+    :param container_id: container name
+    :type container_id: str
+    :param info: container's information, including its bridge and
+                 interface details.
+    :type info: ContainerInfoDict
+    :return: True if container interface does not exists.
+    """
+    db = get_db(info["bridge"])
+    if (cc_cache := db.get(container_id, {})) and info["iface"] in cc_cache:
+        _LOGGER.error(
+            "iface %s already exists for container: %s",
+            info["iface"],
+            container_id,
+        )
+        return False
+    return True

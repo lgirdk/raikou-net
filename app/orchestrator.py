@@ -241,7 +241,9 @@ def add_iface_to_container(  # noqa: C901
     bridge = info["bridge"]  # Mandatory
     iface = info["iface"]  # Mandatory
     db_cache = get_db(bridge)
+    cc_cache = db_cache.setdefault(container_name, {})
     cmd = f"{util} add-port {bridge} {iface} {container_name}"
+    cc_cache.setdefault(iface, {})
 
     # Check if container exists, skip if it does not exist.
     if (not check_container_exists(container_name)) or check_interface_exists(

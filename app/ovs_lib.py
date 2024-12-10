@@ -382,7 +382,7 @@ def configure_container_vlan(container_name: str, info: ContainerInfoDict) -> No
     util = "ovs-docker" if not USE_LINUX_BRIDGE else "lxbr-docker"
     bridge = info["bridge"]  # Mandatory
     iface = info["iface"]  # Mandatory
-
+    cc_cache = get_db(bridge)[container_name][iface]
     for vlan_mode in ("vlan", "trunk"):
         if value := info.get(vlan_mode):
             _LOGGER.debug(
@@ -394,6 +394,7 @@ def configure_container_vlan(container_name: str, info: ContainerInfoDict) -> No
                 check=True,
                 capture_output=True,
             )
+            cc_cache["vlan_mode"] = value
             _LOGGER.info(
                 "%s set for %s:%s is %s", vlan_mode, container_name, iface, value
             )
