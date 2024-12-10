@@ -1,5 +1,7 @@
 """API Schemas for Raikou-Net."""
 
+from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -158,4 +160,9 @@ class VethPairInfo(BaseModel):
         None,
         description="Optional mapping for VLAN translation (e.g., '2005:100')",
         title="VLAN Mapping",
+    )
+    trunk: Literal["yes", "no"] = Field(
+        "no",
+        description="Whether the veth pair is trunked ('yes' or 'no')",
+        title="Trunk",
     )

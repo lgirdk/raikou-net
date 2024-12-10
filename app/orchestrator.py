@@ -13,7 +13,7 @@ import time
 import traceback
 from pathlib import Path
 from subprocess import CalledProcessError
-from typing import cast
+from typing import Literal, cast
 
 from app.ovs_lib import (
     add_iface_to_linux_bridge,
@@ -152,7 +152,9 @@ def init_bridge(bridge_name: str, info: BridgeInfoDict) -> None:
         _add_iface_to_bridge(bridge_name=bridge_name, parent_info=parent_info)
 
 
-def create_veth_pair(on_bridge: str, prefix: str, vlan_map: str = ":") -> None:
+def create_veth_pair(
+    on_bridge: str, prefix: str, vlan_map: str = ":", trunk: Literal["yes", "no"] = "no"
+) -> None:
     """Create a veth pair and attach it to OVS bridges.
 
     Create a veth pair and attach each end of the pair to the OVS bridge with
@@ -172,6 +174,8 @@ def create_veth_pair(on_bridge: str, prefix: str, vlan_map: str = ":") -> None:
     :type prefix: str
     :param vlan_map: Optional, VLAN mapping in the format "source_vlan:dest_vlan".
     :type vlan_map: str
+    :param trunk: If ports should be added to bridge as trunk. Default is no.
+    :type trunk: Literal["yes", "no"]
     :raises ValueError: if prefix length is more than 8 characters
     """
     _LOGGER.debug("################## VLAN TRANSLATION #####################")
@@ -211,12 +215,18 @@ def create_veth_pair(on_bridge: str, prefix: str, vlan_map: str = ":") -> None:
 
     # Always attach the first veth (veth0) to the bridge
     _LOGGER.debug("Attaching %s to bridge %s", veth0, on_bridge)
-    add_function(on_bridge, {"iface": veth0, "vlan": source_vlan})
+    if trunk == "yes":
+        add_function(on_bridge, {"iface": veth0, "trunk": source_vlan})
+    else:
+        add_function(on_bridge, {"iface": veth0, "vlan": source_vlan})
     _LOGGER.info("VETH %s attached to bridge %s", veth0, on_bridge)
 
     if dest_vlan:
         _LOGGER.debug("Attaching %s to bridge %s", veth1, on_bridge)
-        add_function(on_bridge, {"iface": veth1, "vlan": dest_vlan})
+        if trunk == "yes":
+            add_function(on_bridge, {"iface": veth1, "trunk": dest_vlan})
+        else:
+            add_function(on_bridge, {"iface": veth1, "vlan": dest_vlan})
         _LOGGER.info("VETH %s attached to bridge %s", veth1, on_bridge)
     else:
         _LOGGER.debug("No VLAN configuration for veth1: %s", veth1)
@@ -325,16 +335,13 @@ def main() -> None:
             for info in iface_info:
                 add_iface_to_container(container, info)
 
-        # Configure VLAN translations between bridges
-        # Create dangling veth pairs
-        # Skipping VLAN translations for default linux bridges!
-        if not USE_LINUX_BRIDGE:
-            for prefix, translation in config.get("veth_pairs", {}).items():
-                create_veth_pair(
-                    on_bridge=translation["on"],
-                    prefix=prefix,
-                    vlan_map=translation.get("map", ":"),
-                )
+        for prefix, translation in config.get("veth_pairs", {}).items():
+            create_veth_pair(
+                on_bridge=translation["on"],
+                prefix=prefix,
+                vlan_map=translation.get("map", ":"),
+                trunk=translation.get("trunk", "no"),
+            )
 
         # Introduce a sleep since supervisor can't add interval between restarts.
         time.sleep(10)

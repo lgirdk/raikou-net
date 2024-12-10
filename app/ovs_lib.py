@@ -66,9 +66,9 @@ def configure_ovs_vlan_port(port_name: str, vlan_type: str, vid: str) -> None:
     :type vid: str
     """
     if vlan_type == "trunk":
-        run_command(f"ovs-vsctl set port {port_name} trunks={vid}")
+        run_command(f"ovs-vsctl set port {port_name} vlan_mode=trunk trunks={vid}")
     elif vlan_type == "vlan":
-        run_command(f"ovs-vsctl set port {port_name} tag={vid}")
+        run_command(f"ovs-vsctl set port {port_name} vlan_mode=access tag={vid}")
     elif vlan_type == "native":
         run_command(
             f"ovs-vsctl set port {port_name} vlan_mode=native-untagged tag={vid}"
@@ -274,13 +274,15 @@ def add_iface_to_ovs_bridge(bridge_name: str, iface_info: IfaceInfoDict) -> None
         _LOGGER.debug("parent %s up for OVS bridge %s", parent, bridge_name)
 
     for key in ["trunk", "native", "vlan"]:
-        value = iface_info.get(key)
+        value = iface_info.get(key, "")
         cleaned_something = remove_ovs_vlan_port(parent, key, str(value))
-        if value and value != iface_cache.get(key):
-            _LOGGER.info("New %s %s setting applied for parent %s", key, value, parent)
+        if value and value != iface_cache.get(key, ""):
             iface_cache[key] = value
             if cleaned_something:
                 configure_ovs_vlan_port(parent, key, str(value))
+                _LOGGER.info(
+                    "New %s %s setting applied for parent %s", key, value, parent
+                )
 
 
 def add_iface_to_linux_bridge(bridge_name: str, iface_info: IfaceInfoDict) -> None:
@@ -306,7 +308,7 @@ def add_iface_to_linux_bridge(bridge_name: str, iface_info: IfaceInfoDict) -> No
         run_command(f"brctl addif {bridge_name} {parent}")
 
     for key in ["trunk", "native", "vlan"]:
-        if (value := iface_info.get(key)) and value != iface_cache.get(key):
+        if (value := iface_info.get(key, "")) and value != iface_cache.get(key, ""):
             _LOGGER.info("New %s %s setting applied for parent %s", key, value, parent)
             iface_cache[key] = value
             if remove_linux_bridge_vlan(parent, str(value)):

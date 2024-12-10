@@ -44,7 +44,9 @@ async def add_veth_pair_api(
 
     # Create veth pair
     try:
-        create_veth_pair(veth_pair_info.on, veth_pair_id, veth_pair_info.map)
+        create_veth_pair(
+            veth_pair_info.on, veth_pair_id, veth_pair_info.map, veth_pair_info.trunk
+        )
     except ValueError as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
