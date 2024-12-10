@@ -276,3 +276,41 @@ def validate_container(container_id: str, info: ContainerInfoDict) -> bool:
         )
         return False
     return True
+
+
+def validate_veth_pair(veth_pair_id: str, info: dict) -> bool:
+    """Validate the VETH pair ID.
+
+    This function performs two checks:
+
+    1. Ensures that the `veth_pair_id` does not exceed the
+       predefined length limit of 8 characters.
+    2. Checks if the VETH pair's interface name (e.g., `v0_{veth_pair_id}`)
+       already exists on the specified bridge.
+
+    If any validation fails, it logs an error and returns `False`.
+    Otherwise, it returns `True`.
+
+    :param veth_pair_id: The unique identifier for the VETH pair,
+                         which will be used as a prefix.
+    :type veth_pair_id: str
+    :param info: Dictionary containing details about the VETH pair,
+                 including the target bridge (`info["on"]`).
+    :type info: dict
+    :return: Returns `True` if the validation passes, otherwise `False`.
+    :rtype: bool
+    """
+    prefix_length_limit = 8
+    if len(veth_pair_id) > prefix_length_limit:
+        _LOGGER.error("VETH prefix ID: %s is more than 8 chars", veth_pair_id)
+        return False
+
+    veth_pair_end = f"v0_{veth_pair_id}"
+    if (bridge := get_db(info["on"])) and veth_pair_end in bridge:
+        _LOGGER.error(
+            "iface %s exists in bridge: %s",
+            veth_pair_id,
+            info["on"],
+        )
+        return False
+    return True
