@@ -23,6 +23,9 @@ for iface in $(ip -o link show type veth | cut -d" " -f2 | cut -d"@" -f1); do
     if [[ "${iface: -2}" == "_c" ]]; then
         ip link del "$iface" || true
     fi
+    if [[ "${iface:0:3}" == "v1_" ]]; then
+        ip link del "$iface" || true
+    fi
 done
 
 exec /usr/bin/supervisord -c /etc/supervisord.conf "$@"
