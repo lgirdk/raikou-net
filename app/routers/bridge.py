@@ -6,7 +6,7 @@ from fastapi import APIRouter, Body, HTTPException
 
 from app.orchestrator import init_bridge
 from app.schemas import BridgeInfo
-from app.utils import BridgeInfoDict, validate_bridge
+from app.utils import EVENT_LOCK, BridgeInfoDict, get_config, validate_bridge
 
 router = APIRouter()
 
@@ -37,7 +37,17 @@ async def init_bridge_api(
 
     # Init Bridge logic
     try:
-        init_bridge(bridge_name, payload)
+        async with EVENT_LOCK:
+            init_bridge(bridge_name, payload)
+
+            # Update runner config only if bridge is added
+            config = get_config()
+            bridge_config = config["bridge"].setdefault(bridge_name, {})
+            for key, value in payload.items():
+                if key in bridge_config and isinstance(value, list):
+                    bridge_config.setdefault(key, []).extend(value)
+                    continue
+                bridge_config[key] = value
     except ValueError as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 

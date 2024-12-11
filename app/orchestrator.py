@@ -6,12 +6,10 @@ Need to ensure that the dockerr.socket is mounted else the program must close.
 
 from __future__ import annotations
 
+import asyncio
 import ipaddress
-import json
 import sys
-import time
 import traceback
-from pathlib import Path
 from subprocess import CalledProcessError
 from typing import Literal, cast
 
@@ -26,8 +24,8 @@ from app.ovs_lib import (
     veth_exists,
 )
 from app.utils import (
-    DB_JSON_PATH,
     DOCKER_SOCKET,
+    EVENT_LOCK,
     MAX_FAIL_COUNT,
     USE_LINUX_BRIDGE,
     BridgeInfoDict,
@@ -35,6 +33,7 @@ from app.utils import (
     IfaceInfoDict,
     auto_allocate_ip,
     check_container_exists,
+    get_config,
     get_db,
     get_logger,
     get_usb_interface,
@@ -187,6 +186,7 @@ def create_veth_pair(
     veth0 = f"v0_{prefix}"
     veth1 = f"v1_{prefix}"
     _LOGGER.debug("VETH pair entry: %s <--> %s", veth0, veth1)
+    log_method = _LOGGER.info
 
     # Check if veth pair already exists
     # We will always check the C-VLAN veth endpoint.
@@ -204,6 +204,7 @@ def create_veth_pair(
             veth1,
         )
         _LOGGER.debug("Skipping VLAN endpoint creation.")
+        log_method = _LOGGER.debug
 
     add_function = (
         add_iface_to_linux_bridge if USE_LINUX_BRIDGE else add_iface_to_ovs_bridge
@@ -219,7 +220,7 @@ def create_veth_pair(
         add_function(on_bridge, {"iface": veth0, "trunk": source_vlan})
     else:
         add_function(on_bridge, {"iface": veth0, "vlan": source_vlan})
-    _LOGGER.info("VETH %s attached to bridge %s", veth0, on_bridge)
+    log_method("VETH %s attached to bridge %s", veth0, on_bridge)
 
     if dest_vlan:
         _LOGGER.debug("Attaching %s to bridge %s", veth1, on_bridge)
@@ -227,10 +228,10 @@ def create_veth_pair(
             add_function(on_bridge, {"iface": veth1, "trunk": dest_vlan})
         else:
             add_function(on_bridge, {"iface": veth1, "vlan": dest_vlan})
-        _LOGGER.info("VETH %s attached to bridge %s", veth1, on_bridge)
+        log_method("VETH %s attached to bridge %s", veth1, on_bridge)
     else:
         _LOGGER.debug("No VLAN configuration for veth1: %s", veth1)
-        _LOGGER.info("VETH %s is dangling!", veth1)
+        log_method("VETH %s is dangling!", veth1)
 
 
 def add_iface_to_container(  # noqa: C901
@@ -310,8 +311,8 @@ def add_iface_to_container(  # noqa: C901
     configure_container_vlan(container_name, info)
 
 
-def main() -> None:
-    """Runner function."""
+async def main() -> None:  # noqa: C901
+    """Runner function that runs in a loop."""
     # Initial Check if docker socket is loaded.
     if not DOCKER_SOCKET.exists():
         _LOGGER.error("Need to mount Docker socket!!")
@@ -319,49 +320,43 @@ def main() -> None:
 
     check_sys_module()
 
-    config = json.load(Path("/root/config.json").open(encoding="UTF-8"))  # noqa: SIM115
-
     fail_count = cast(int, get_db("failed", 0))
-    if fail_count > MAX_FAIL_COUNT:
-        sys.exit(1)
 
-    try:
-        # Initialize all parent bridges
-        for bridge, info in config["bridge"].items():
-            init_bridge(bridge, info)
+    while True:
+        config = get_config()
 
-        # Attach containers to parent bridges based on config.json
-        for container, iface_info in config["container"].items():
-            for info in iface_info:
-                add_iface_to_container(container, info)
-
-        for prefix, translation in config.get("veth_pairs", {}).items():
-            create_veth_pair(
-                on_bridge=translation["on"],
-                prefix=prefix,
-                vlan_map=translation.get("map", ":"),
-                trunk=translation.get("trunk", "no"),
-            )
-
-        # Introduce a sleep since supervisor can't add interval between restarts.
-        time.sleep(10)
-
-    except (CalledProcessError, ValueError, IndexError):
-        _LOGGER.exception("Exiting core due to exception")
-        traceback.print_exc()
-        get_db()["failed"] = fail_count + 1
         if fail_count > MAX_FAIL_COUNT:
-            _LOGGER.exception("Orchestrator keeps failing!")
-            _LOGGER.exception("Bailing out!! Will not attempt to modify host network!!")
+            sys.exit(1)
+        try:
+            async with EVENT_LOCK:
+                # Initialize all parent bridges
+                for bridge, info in config["bridge"].items():
+                    init_bridge(bridge, info)
 
-    finally:
-        # Dump the Lease DB
-        json.dump(
-            get_db(),
-            DB_JSON_PATH.open("w", encoding="utf-8"),
-            indent=4,
-        )
+                # Attach containers to parent bridges based on config.json
+                for container, iface_info in config["container"].items():
+                    for info in iface_info:
+                        add_iface_to_container(container, info)
 
+                # Handle Veth pairs and VLAN translations
+                for prefix, translation in config.get("veth_pairs", {}).items():
+                    create_veth_pair(
+                        on_bridge=translation["on"],
+                        prefix=prefix,
+                        vlan_map=translation.get("map", ":"),
+                        trunk=translation.get("trunk", "no"),
+                    )
 
-if __name__ == "__main__":
-    main()
+            # Introduce a sleep to wait before the next loop cycle
+            await asyncio.sleep(15)  # This allows cancellation to be checked
+
+        except asyncio.CancelledError:
+            _LOGGER.info("Main loop has been cancelled. Shutting down gracefully.")
+
+        except (CalledProcessError, ValueError, IndexError):
+            _LOGGER.exception("Exiting core due to exception")
+            traceback.print_exc()
+            get_db()["failed"] = fail_count + 1
+            if fail_count > MAX_FAIL_COUNT:
+                _LOGGER.exception("Orchestrator keeps failing! Exiting.")
+                sys.exit(1)

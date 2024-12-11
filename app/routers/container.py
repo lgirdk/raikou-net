@@ -6,7 +6,7 @@ from fastapi import APIRouter, Body, HTTPException
 
 from app.orchestrator import add_iface_to_container
 from app.schemas import ContainerInfo
-from app.utils import ContainerInfoDict, validate_container
+from app.utils import EVENT_LOCK, ContainerInfoDict, get_config, validate_container
 
 router = APIRouter()
 
@@ -35,7 +35,13 @@ async def add_iface_to_container_api(
 
     # Add interface to container
     try:
-        add_iface_to_container(container_id, payload)
+        async with EVENT_LOCK:
+            add_iface_to_container(container_id, payload)
+
+            # Add runner config only if container iface is added
+            config = get_config()
+            cc_config = config["container"].setdefault(container_id, [])
+            cc_config.append(payload)
     except ValueError as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 

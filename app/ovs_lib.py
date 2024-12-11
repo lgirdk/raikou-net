@@ -165,7 +165,7 @@ def remove_ovs_vlan_port(parent: str, vlan_type: str, vid: str) -> bool:
 
     :param parent: The interface (port) from which to remove the VLAN setting.
     :type parent: str
-    :param vlan_type: The VLAN setting type (trunk, native, vlan).
+    :param vlan_type: The VLAN setting type (trunk, vlan).
     :type vlan_type: str
     :param vid: The value of the VLAN setting to be removed.
     :type vid: str
@@ -177,18 +177,19 @@ def remove_ovs_vlan_port(parent: str, vlan_type: str, vid: str) -> bool:
         check = run_command(f"ovs-vsctl get port {parent} trunks", check=False)
         current_value = re.findall(r"\d+", check.stdout.strip())
         _LOGGER.debug("Current trunk VLAN for port %s is %s", parent, current_value)
-    elif vlan_type in ("native", "vlan"):
+    elif vlan_type in ("vlan"):
         check = run_command(f"ovs-vsctl get port {parent} tag", check=False)
         current_value = re.findall(r"\d+", check.stdout.strip())
         _LOGGER.debug("Current tag VLAN for port %s is %s", parent, current_value)
-
+    else:
+        return True
     # if there is no setting, then there was nothing to remove.
     if not current_value:
         return True
 
     # Check if the current value differs from the one we want to remove
     if set(current_value) == set(re.findall(r"\d+", vid)):
-        _LOGGER.info(
+        _LOGGER.debug(
             "No need to remove %s VLAN setting %s for port %s, already set",
             vlan_type,
             vid,

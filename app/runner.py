@@ -1,5 +1,6 @@
 """Main Runner."""
 
+import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -21,9 +22,17 @@ async def app_lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     :type _app: FastAPI
     :yield: notifies FASTAPI to start listening to requests.
     """
-    main()  # Call the main function during startup
+    task = asyncio.create_task(main())
+
+    # Yield allows FastAPI to start accepting requests
     yield
-    _LOGGER.info("Shutting down...")
+
+    # Shutdown logic: cancel the task when the app stops
+    task.cancel()
+    try:
+        await task  # Wait for the task to finish gracefully after cancellation
+    except asyncio.CancelledError:
+        _LOGGER.info("Background task cancelled during shutdown.")
 
 
 app = FastAPI(lifespan=app_lifespan)

@@ -6,6 +6,7 @@ Provides a logger provider function for use in other modules.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import ipaddress
 import json
@@ -22,6 +23,7 @@ DB_JSON_PATH = Path("/tmp/db.json")  # noqa: S108
 MAX_FAIL_COUNT = 2
 DOCKER_SOCKET = Path("/var/run/docker.sock")
 USE_LINUX_BRIDGE = os.environ.get("USE_LINUX_BRIDGE", "false") in ("true", "1")
+EVENT_LOCK = asyncio.Lock()
 T = TypeVar("T")
 
 
@@ -116,6 +118,17 @@ def get_db(key: str = "", default: T | None = None) -> dict[str, Any] | T:
         # Only set to an empty dict if `default` is not provided.
         return db.setdefault(key, default if default is not None else {})
     return db
+
+
+@cache
+def get_config() -> dict[str, Any]:
+    """Return the OVS config.
+
+    :return: The OVS config.
+    :rtype: dict[str, Any]
+    """
+    with Path("/root/config.json").open(encoding="UTF-8") as fp:
+        return json.load(fp)
 
 
 def hash_string(string: str) -> str:
