@@ -92,6 +92,15 @@ if [ "$AFTR_EP" ]; then
         /root/aftr/aftr -c /root/aftr/aftr.conf -s /root/aftr/aftr-script
 fi
 
+# Add static routes after splitting them
+# Separator is ";"
+if [[ ! -z "$STATIC_ROUTES" ]]; then
+    IFS=";"
+    for route in $STATIC_ROUTES; do
+        bash -c "ip route add $route"
+    done
+fi
+
 service tftpd-hpa start;
 service lighttpd start;
 service dnsmasq start;

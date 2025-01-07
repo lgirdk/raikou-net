@@ -24,7 +24,7 @@ LABEL version="lwds_lite_1.0"
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV DNS_UPSTREAM=8.8.8.8
-
+ENV STATIC_ROUTES=""
 ENV AFTR_EP=""
 ENV AFTR_ACL=""
 
