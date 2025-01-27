@@ -34,6 +34,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     dante-server \
     dnsmasq \
     dnsutils \
+    hping3\
     iperf \
     iperf3 \
     iproute2 \
