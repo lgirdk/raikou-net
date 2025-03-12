@@ -6,6 +6,7 @@ LABEL version=""
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV DNS_UPSTREAM=8.8.8.8
+ENV LEGACY="no"
 
 COPY ./resources.isc/init /root/init
 

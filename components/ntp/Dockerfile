@@ -3,7 +3,7 @@ FROM ssh:v1.2.0
 LABEL maintainer="ktewari@libertyglobal.com"
 LABEL version="container_utils_1.1.1"
 
-ENV LEGACY=yes
+ENV LEGACY="no"
 ENV NTP_UPSTREAM=
 ENV DEBIAN_FRONTEND=noninteractive
 

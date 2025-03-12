@@ -51,7 +51,7 @@ COPY ./resources/keactrl.conf /etc/kea/
 COPY ./resources/keactrl /usr/sbin/
 
 ENV PATH "/sbin:/bin:/usr/sbin:/usr/bin"
-ENV LEGACY=yes
+ENV LEGACY="no"
 ENV FAST_API=no
 
 EXPOSE 8000

@@ -4,6 +4,12 @@
 # By default only check for WAN and AUX interfaces
 # Any other interface needs to be passed via ENV to be checked.
 # Mandatory checks
+
+# Isolate docker network
+if [ "$LEGACY" == "no" ]; then
+    isolate_docker_iface
+fi
+
 while ! find /sys/class/net | grep -q -w eth1 ; do
     echo "WAN interface not found"
     sleep 5

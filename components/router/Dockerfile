@@ -3,6 +3,8 @@ FROM ssh:v1.2.0
 LABEL maintainer="ktewari@libertyglobal.com"
 LABEL version="frr_10.0"
 
+ENV LEGACY="no"
+
 # Install packages required for the following repositories.
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PATH "/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin"
