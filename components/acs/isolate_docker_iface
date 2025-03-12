@@ -18,6 +18,7 @@ if [ $exit_flag == false ]; then
     exit 1
 fi
 
+#IPv4
 mgmt_ip=$(ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
 mgmt_gw=$(ip route show default | grep -oP 'via \K.*(?=dev)')
 mgmt_nw=$(ip route show src $mgmt_ip | grep -oP '.* (?=dev)')
@@ -28,6 +29,24 @@ ip rule add from $mgmt_ip table mgmt
 ip rule add to $mgmt_ip table mgmt
 ip rule add from $mgmt_nw table mgmt
 ip rule add to $mgmt_nw table mgmt
-ip route del default
+
+if ip route show default | grep -q 'via .* dev eth0'; then
+    ip route del default
+fi
+
+# Move v6 default route to mgmt table if IPv6 is enabled on eth0
+if sysctl -n net.ipv6.conf.eth0.disable_ipv6 | grep -q '^0$'; then
+    mgmt_ip6=$(ip -6 addr show eth0 | grep 'inet6' | grep 'global' | grep -oP 'inet6\s+\K[^\s/]+')
+    mgmt_gw6=$(ip -6 route show default | grep -oP 'via \K.*(?=dev)')
+    mgmt_nw6=$(ip -6 route show | grep -oP '^\S+/\d+' | grep -v 'fe80::')
+    ip -6 route add default via $mgmt_gw6 table mgmt
+    ip -6 rule add from $mgmt_ip6 table mgmt
+    ip -6 rule add to $mgmt_ip6 table mgmt
+    ip -6 rule add from $mgmt_nw6 table mgmt
+    ip -6 rule add to $mgmt_nw6 table mgmt
+    if ip -6 route show default | grep -q 'via .* dev eth0'; then
+        ip -6 route del default
+    fi
+fi
 
 echo "alias mgmt='BIND_ADDR=$mgmt_ip LD_PRELOAD=/usr/lib/bind.so '" >> /root/.bashrc

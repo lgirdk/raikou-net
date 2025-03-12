@@ -27,6 +27,7 @@ ENV DNS_UPSTREAM=8.8.8.8
 ENV STATIC_ROUTES=""
 ENV AFTR_EP=""
 ENV AFTR_ACL=""
+ENV LEGACY="no"
 
 # hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends \
