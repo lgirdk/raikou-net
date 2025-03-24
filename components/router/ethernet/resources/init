@@ -1,0 +1,99 @@
+#! /bin/bash -xe
+
+# Wait for all interfaces to get added.
+# By default only check for WAN and AUX interfaces
+# Any other interface needs to be passed via ENV to be checked.
+# Mandatory checks
+
+if [ "$LEGACY" == "no" ]; then
+    isolate_docker_iface
+fi
+
+while [ -z $(ls /sys/class/net | grep -w eth1) ]; do
+    echo "WAN interface not found"
+    sleep 5
+done
+ip link set eth1 up
+
+while [ -z $(ls /sys/class/net | grep -w aux0) ]; do
+    echo "WAN interface not found"
+    sleep 5
+done
+ip link set aux0 up
+
+# Zebra Configuration
+ZEBRA_CONF=$(
+    cat <<EOF
+!
+! Interface #IFACE
+!
+interface #IFACE
+ ip address #IP4
+ ipv6 address #IP6
+ no ipv6 nd suppress-ra
+ ipv6 nd router-preference high
+ no ipv6 nd managed-config-flag
+ no ipv6 nd other-config-flag
+!
+EOF
+)
+
+# Checks and configurations for CPE interfaces
+for i in $CPE_MGMT $CPE_DATA $CPE_VOICE; do
+    IFS=,
+    read IFACE IP4 IP6 <<< "$i"
+
+    while [ ! -d "/sys/class/net/$IFACE" ]; do
+        echo "$IFACE interface not found"
+        sleep 5
+    done
+    ip link set "$IFACE" up
+
+    ZEBRA_BLOB="${ZEBRA_CONF//\#IFACE/$IFACE}"
+    ZEBRA_BLOB="${ZEBRA_BLOB//\#IP4/$IP4}"
+    ZEBRA_BLOB="${ZEBRA_BLOB//\#IP6/$IP6}"
+
+    echo "$ZEBRA_BLOB" >> /etc/frr/frr.conf
+done
+
+unset IFS
+sysctl -p /etc/sysctl.conf
+
+# New changes in FRR 9.0+
+if [ -f /etc/frr/staticd.conf ]; then
+    cat /etc/frr/staticd.conf >> /etc/frr/frr.conf
+    sed -i s"/staticd=no/staticd=yes/" /etc/frr/daemons
+fi
+
+echo "Starting daemons."
+for svc in $FRR_DAEMONS; do
+    echo "Starting ${svc}."
+    sed -i s"/${svc}=no/${svc}=yes/" /etc/frr/daemons
+done
+
+service frr start
+sleep 5
+
+update-alternatives --set iptables /usr/sbin/iptables-legacy
+update-alternatives --set ip6tables /usr/sbin/ip6tables-nft
+
+if [ -n "$ENABLE_NAT_ON" ]; then
+    iptables -t nat -A POSTROUTING -o "$ENABLE_NAT_ON" -j MASQUERADE
+    ip6tables -t nat -A POSTROUTING -o "$ENABLE_NAT_ON" -j MASQUERADE
+fi
+
+# Start DHCP relay once all interfaces are up with FRR
+if [ ! -z $(echo $DHCP_RELAY) ]; then
+    for i in $CPE_MGMT $CPE_DATA $CPE_VOICE; do
+        IFS=,
+        read RELAY4 RELAY6 <<<$DHCP_RELAY
+        read IFACE IP4 IP6 <<<$i
+        dhcrelay -4 -a -iu eth1 -id $IFACE $RELAY4
+        dhcrelay -6 -I -l $IFACE -u $RELAY6%eth1
+    done
+    unset IFS
+fi
+
+
+# Run sshd by default
+/usr/sbin/sshd -D
