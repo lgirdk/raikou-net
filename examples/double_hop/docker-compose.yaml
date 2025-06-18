@@ -1,5 +1,11 @@
 ---
 services:
+    ssh_service:
+        build:
+            context: ../../components/ssh/
+            tags:
+                - ssh:v1.2.0
+
     router:
         container_name: router
         ports:
@@ -205,12 +211,6 @@ services:
             - sipcenter
             - lan-phone
             - wan-phone
-
-    ssh_service:
-        build:
-            context: ../../components/ssh/
-            tags:
-                - ssh:v1.2.0
 
 volumes:
     data_db:
