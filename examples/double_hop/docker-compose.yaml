@@ -197,7 +197,7 @@ services:
             - ./config.json:/root/config.json
         privileged: true
         environment:
-            - USE_LINUX_BRIDGE=true
+            - USE_LINUX_BRIDGE=false
         pid: host
         network_mode: host
         hostname: orchestrator
