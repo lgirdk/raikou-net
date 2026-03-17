@@ -12,6 +12,7 @@ COPY ./resources/container_utils-1.1.1-py3-none-any.whl container_utils-1.1.1-py
 
 # hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    arping \
     curl \
     microsocks \
     dnsutils \
