@@ -11,14 +11,14 @@ services:
             - CPE_DATA_IFACE=cpe
             - CPE_DATA_BUNDLE=10.1.1.1/24,2001:dead:cafe:1::1/64
             - DHCP_RELAY=eth1,172.25.1.20,2001:dead:beef:2::20
-        image: ghcr.io/ketantewari/raikou/router:v1
+        image: ghcr.io/ketantewari/raikou/router:v3
         privileged: true
         hostname: router
 
     cpe:
         container_name: cpe
         restart: always
-        image: ghcr.io/ketantewari/raikou/cpe:rdkb-v1
+        image: ghcr.io/ketantewari/raikou/cpe:rdkb-v3
         privileged: true
         tty: true
         stdin_open: true
@@ -40,7 +40,7 @@ services:
 
     sipcenter:
         container_name: sipcenter
-        image: ghcr.io/ketantewari/raikou/sipcenter:v1
+        image: ghcr.io/ketantewari/raikou/sipcenter:v3
         ports:
             - 4005:22
         environment:
@@ -53,7 +53,7 @@ services:
 
     lan-phone:
         container_name: lan-phone
-        image: ghcr.io/ketantewari/raikou/sipphone:v1
+        image: ghcr.io/ketantewari/raikou/sipphone:v3
         ports:
             - 4006:22
         environment:
@@ -63,7 +63,7 @@ services:
 
     wan-phone:
         container_name: wan-phone
-        image: ghcr.io/ketantewari/raikou/sipphone:v1
+        image: ghcr.io/ketantewari/raikou/sipphone:v3
         ports:
             - 4007:22
         environment:
@@ -73,7 +73,7 @@ services:
 
     wan:
         container_name: wan
-        image: ghcr.io/ketantewari/raikou/wan:v1
+        image: ghcr.io/ketantewari/raikou/wan:v3
         ports:
             - 4001:22
             - 8001:8080
@@ -85,7 +85,7 @@ services:
 
     lan:
         container_name: lan
-        image: ghcr.io/ketantewari/raikou/lan:v1
+        image: ghcr.io/ketantewari/raikou/lan:v3
         ports:
             - 4002:22
             - 8002:8080
@@ -96,7 +96,7 @@ services:
 
     dhcp:
         container_name: dhcp
-        image: ghcr.io/ketantewari/raikou/dhcp:v1
+        image: ghcr.io/ketantewari/raikou/dhcp:v3
         ports:
             - 4003:22
         environment:
@@ -127,7 +127,7 @@ services:
     acs:
         depends_on:
             - mongo
-        image: ghcr.io/ketantewari/raikou/acs:v1
+        image: ghcr.io/ketantewari/raikou/acs:v3
         restart: always
         container_name: acs
         hostname: acs
@@ -153,7 +153,7 @@ services:
 
     raikou-net:
         container_name: orchestrator
-        image: ghcr.io/ketantewari/raikou/orchestrator:v1
+        image: ghcr.io/ketantewari/raikou/orchestrator:v3
         volumes:
             - /lib/modules:/lib/modules
             - /var/run/docker.sock:/var/run/docker.sock
