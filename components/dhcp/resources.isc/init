@@ -1,15 +1,22 @@
 #! /bin/bash -xe
 
 # Ensure isolation of eth0 interface.
-if [ $LEGACY == "no" ]; then
+if [ "$LEGACY" == "no" ]; then
     isolate_docker_iface
 fi
+
+# Seed live config dirs from baked defaults only if no override is mounted.
+mkdir -p /etc/dhcp /etc/default
+for f in dhcpd.conf dhcpd6.conf; do
+    [ -f "/etc/dhcp/$f" ] || cp "/etc/dhcp.dist/$f" "/etc/dhcp/$f"
+done
+[ -f /etc/default/isc-dhcp-server ] || cp /etc/default.dist/isc-dhcp-server /etc/default/isc-dhcp-server
 
 # Mandatory wait
 # The container requires an eth1 interface to run the DHCP server configuration
 # Will be stuck in an infinite loop if eth1 interface is not present.
-while [ -z $(ls /sys/class/net | grep -w eth1) ]; do
-    echo "WAN interface "eth1" not found"
+while ! find /sys/class/net -mindepth 1 -maxdepth 1 | grep -q -w eth1; do
+    echo "WAN interface \"eth1\" not found"
     sleep 5
 done
 ip link set eth1 up

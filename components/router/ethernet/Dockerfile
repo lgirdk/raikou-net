@@ -1,4 +1,4 @@
-FROM ssh:v1.2.0
+FROM ssh:v2.0.0
 
 
 ENV LEGACY="no"

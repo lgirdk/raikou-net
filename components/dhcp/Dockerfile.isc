@@ -1,5 +1,5 @@
 # DEBIAN DHCP Image start from here.
-FROM ssh:v1.2.0
+FROM ssh:v2.0.0
 
 LABEL maintainer="ktewari@libertyglobal.com"
 LABEL version=""
@@ -13,7 +13,6 @@ COPY ./resources.isc/init /root/init
 # hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
-    dante-server \
     dnsmasq \
     dnsutils \
     iperf \
@@ -45,9 +44,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ln -s /tftpboot /var/www/html && \
     chmod +x /root/init
 
-COPY ./resources.isc/dhcpd.conf /etc/dhcp/dhcpd.conf
-COPY ./resources.isc/dhcpd6.conf /etc/dhcp/dhcpd6.conf
-COPY ./resources.isc/isc-dhcp-server.conf /etc/default/isc-dhcp-server
+# Defaults ship to /etc/dhcp.dist/ and /etc/default.dist/ — init copies any
+# missing entry into the live path so a compose mount becomes a true override.
+COPY ./resources.isc/dhcpd.conf /etc/dhcp.dist/dhcpd.conf
+COPY ./resources.isc/dhcpd6.conf /etc/dhcp.dist/dhcpd6.conf
+COPY ./resources.isc/isc-dhcp-server.conf /etc/default.dist/isc-dhcp-server
 
 EXPOSE 69/udp
 EXPOSE 80/tcp

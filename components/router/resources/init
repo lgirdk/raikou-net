@@ -10,6 +10,22 @@ if [ "$LEGACY" == "no" ]; then
     isolate_docker_iface
 fi
 
+# Regenerate /etc/frr/{frr,staticd}.conf from baked templates on every start
+# so restart-driven re-runs can't double-append the env-driven iface blocks
+# below. If a user bind-mounts /etc/frr/frr.conf, treat it as authoritative:
+# don't overwrite it and don't append to it.
+MANAGE_FRR_CONF=yes
+if mountpoint -q /etc/frr/frr.conf 2>/dev/null; then
+    echo "frr.conf is bind-mounted; leaving contents untouched."
+    MANAGE_FRR_CONF=no
+else
+    cp /etc/frr.dist/frr.conf /etc/frr/frr.conf
+fi
+if ! mountpoint -q /etc/frr/staticd.conf 2>/dev/null; then
+    cp /etc/frr.dist/staticd.conf /etc/frr/staticd.conf
+fi
+chown frr:frr /etc/frr/frr.conf /etc/frr/staticd.conf 2>/dev/null || true
+
 while ! find /sys/class/net | grep -q -w eth1 ; do
     echo "WAN interface not found"
     sleep 5
@@ -70,7 +86,7 @@ for IFACE_DATA in "${IFACE_REQUIRED[@]}"; do
     echo "checked: $IFACE, status:exists"
     echo ""
 
-    if [ "$FRR_AUTO_CONF" == "yes" ]; then
+    if [ "$FRR_AUTO_CONF" == "yes" ] && [ "$MANAGE_FRR_CONF" == "yes" ]; then
         ZEBRA_BLOB="${ZEBRA_CONF//\#IFACE/$IFACE}"
         for IP_GROUP in $(echo "$BUNDLE"| tr ";" "\n"); do
             read -r IPv4 IPv6 <<< "$(echo "$IP_GROUP"| tr ',' ' ')"
@@ -102,7 +118,9 @@ for svc in $FRR_DAEMONS; do
 done
 
 # New changes in FRR 9.0+
-if [ -f /etc/frr/staticd.conf ]; then
+# Only fold staticd.conf into frr.conf when we own frr.conf — otherwise we
+# would be writing into a bind-mounted file the operator manages themselves.
+if [ -f /etc/frr/staticd.conf ] && [ "$MANAGE_FRR_CONF" == "yes" ]; then
     cat /etc/frr/staticd.conf >> /etc/frr/frr.conf
     sed -i s"/staticd=no/staticd=yes/" /etc/frr/daemons
 fi

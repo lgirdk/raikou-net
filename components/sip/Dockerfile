@@ -22,7 +22,11 @@ LABEL rtpengine-version=${RTP_ENGINE_VER:-"13.0.0.0"}
 COPY ./utils/init.sh /root/init.sh
 COPY ./utils/db_creation.sh /root/db_creation.sh
 COPY ./utils/isolate_docker_iface /usr/bin/isolate_docker_iface
-COPY ./utils/kamailio_default.cfg /etc/kamailio/kamailio.cfg
+# Kamailio default config ships to /etc/kamailio.dist/ — init seeds the live
+# path on first start only, so a compose mount on /etc/kamailio/kamailio.cfg
+# is treated as the user's authoritative config (init still sed-substitutes
+# KAM_LISTEN_* placeholders if present, which is a no-op on a final config).
+COPY ./utils/kamailio_default.cfg /etc/kamailio.dist/kamailio.cfg
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 

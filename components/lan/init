@@ -3,6 +3,13 @@ if [ "$LEGACY" == "no" ]; then
     isolate_docker_iface
 fi
 
+# Seed live config paths from baked defaults — compose mounts win.
+mkdir -p /etc/default /etc/dhcp
+[ -f /etc/default/tftpd-hpa ]    || cp /etc/default.dist/tftpd-hpa    /etc/default/tftpd-hpa
+[ -f /etc/dhcp/dhclient.conf ]   || cp /etc/dhcp.dist/dhclient.conf   /etc/dhcp/dhclient.conf
+[ -f /sbin/dhclient-script ]     || cp /sbin/dhclient-script.dist     /sbin/dhclient-script
+chmod +x /sbin/dhclient-script
+
 count=$((TIMEOUT/5))
 for _i in $(seq 1 $count); do
     if ! find /sys/class/net | grep -q -w eth1 ; then
@@ -13,27 +20,10 @@ for _i in $(seq 1 $count); do
     break
 done
 
-cat > /etc/danted.conf << EOF
-logoutput: stderr
-internal: 0.0.0.0 port = 8080
-external: eth1
-clientmethod: none
-socksmethod: username none #rfc931
-user.privileged: root
-user.unprivileged: nobody
-user.libwrap: nobody
-client pass {
-    from: 0.0.0.0/0 to: 0.0.0.0/0
-    log: connect disconnect error
-}
-socks pass {
-    from: 0.0.0.0/0 to: 0.0.0.0/0
-    log: connect disconnect error
-}
-EOF
-
 service tftpd-hpa start
 service lighttpd start
-service danted start
+# dante-server was removed from Debian trixie; microsocks replaces it as the
+# SOCKS5 proxy listening on :8080 (outbound is via OS routing, no "external" knob).
+microsocks -i 0.0.0.0 -p 8080 &
 
 /usr/sbin/sshd -D

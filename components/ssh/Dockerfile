@@ -1,5 +1,5 @@
 # bind library build stage.
-FROM python:3.13.5-slim-bookworm AS build-stage
+FROM python:3.14.5-slim-trixie AS build-stage
 
 # hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -18,10 +18,10 @@ RUN wget -q http://daniel-lange.com/software/bind.c -O bind.c \
 
 
 # Debian SSH server start from here.
-FROM python:3.13.5-slim-bookworm
+FROM python:3.14.5-slim-trixie
 
 LABEL maintainer="ktewari@libertyglobal.com"
-LABEL version="1.9.2p1"
+LABEL version="2.0.0"
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN echo "root:bigfoot1" | chpasswd
@@ -31,7 +31,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     openssh-server \
     iproute2 \
     && rm -rf /var/lib/apt/lists/* \
-    && mkdir /var/run/sshd \
+    && mkdir -p /var/run/sshd \
     && sed -i 's/.*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config \
     && sed -i 's/.*GatewayPorts.*/GatewayPorts yes/' /etc/ssh/sshd_config \
     && sed -i 's/.*PermitTunnel.*/PermitTunnel yes/' /etc/ssh/sshd_config

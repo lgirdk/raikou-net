@@ -1,5 +1,5 @@
 # Build Stage for bind.so
-FROM node:18-buster AS bind-build-stage
+FROM node:20-bookworm AS bind-build-stage
 
 # hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -15,7 +15,7 @@ RUN wget -q http://daniel-lange.com/software/bind.c -O bind.c \
 
 
 # Final Stage
-FROM drumsergio/genieacs:1.2.9
+FROM drumsergio/genieacs:1.2.16.4
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -31,7 +31,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     supervisor \
     git \
     && rm -rf /var/lib/apt/lists/* \
-    && mkdir /var/run/sshd \
+    && mkdir -p /var/run/sshd \
     && sed -i 's/.*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config \
     && sed -i 's/.*GatewayPorts.*/GatewayPorts yes/' /etc/ssh/sshd_config \
     && sed -i 's/.*PermitTunnel.*/PermitTunnel yes/' /etc/ssh/sshd_config

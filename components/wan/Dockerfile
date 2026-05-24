@@ -1,5 +1,5 @@
 # AFTR package build stage.
-FROM debian:buster-20220316-slim AS builder
+FROM debian:bookworm-slim AS builder
 
 # hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -13,11 +13,13 @@ RUN wget -q $AFTR_PACKAGE_URL --no-check-certificate \
     && tar -xf rt28354.tbz && mv rt28354 aftr
 
 WORKDIR /root/aftr
-RUN ./configure && make
+# AFTR uses pre-C99 `inline` semantics in jhash; force gnu89 inline so newer
+# gcc (12+, bookworm/trixie) keeps emitting the out-of-line symbols.
+RUN ./configure && make CFLAGS="-g -O2 -fgnu89-inline"
 
 
 # DEBIAN WAN Image start from here.
-FROM ssh:v1.2.0
+FROM ssh:v2.0.0
 
 LABEL maintainer="ktewari@libertyglobal.com"
 LABEL version="lwds_lite_1.0"
@@ -32,7 +34,7 @@ ENV LEGACY="no"
 # hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
-    dante-server \
+    microsocks \
     dnsmasq \
     dnsutils \
     hping3\
@@ -63,12 +65,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     rm -rf /var/www/html && \
     ln -s /tftpboot /var/www/html
 
-# Copy AFTR from build stage.
+# Copy AFTR binary tree from build stage and ship default configs to .dist/.
+# init seeds the live paths from .dist/ only when no override is mounted, so
+# a compose `volumes:` entry can replace any of these files cleanly.
 COPY --from=builder /root/aftr /root/aftr
-COPY ./resources/configs/tftpd-hpa/tftpd-hpa.conf /etc/default/tftpd-hpa
+COPY ./resources/configs/tftpd-hpa/tftpd-hpa.conf /etc/default.dist/tftpd-hpa
 COPY ./init /root/init
-COPY ./resources/configs/aftr/aftr.conf /root/aftr/aftr.conf
-COPY ./resources/configs/aftr/aftr-script /root/aftr/aftr-script
+COPY ./resources/configs/aftr/aftr.conf /root/aftr.dist/aftr.conf
+COPY ./resources/configs/aftr/aftr-script /root/aftr.dist/aftr-script
 
 EXPOSE 69/udp
 EXPOSE 80/tcp

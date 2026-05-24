@@ -4,11 +4,17 @@ if [ "$LEGACY" == "no" ]; then
     isolate_docker_iface
 fi
 
+# Seed live ntp.conf from baked default only if no override is mounted.
+mkdir -p /etc/ntpsec
+[ -f /etc/ntpsec/ntp.conf ] || cp /etc/ntpsec.dist/ntp.conf /etc/ntpsec/ntp.conf
+
 sed -i s'|#precedence ::ffff:0:0\/96  100|precedence ::ffff:0:0\/96  100|' /etc/gai.conf
 sed -i -E 's/disable.+= yes/disable         = no/' /etc/xinetd.d/time
-sed -i '/INTERNAL/a \        flags           = IPv6' /etc/xinetd.d/time
+grep -q 'flags.*= IPv6' /etc/xinetd.d/time || \
+    sed -i '/INTERNAL/a \        flags           = IPv6' /etc/xinetd.d/time
 
-if [ -n "$NTP_UPSTREAM" ]; then
+# Idempotent under restart — only add the upstream once.
+if [ -n "$NTP_UPSTREAM" ] && ! grep -q "^server $NTP_UPSTREAM iburst$" /etc/ntpsec/ntp.conf; then
     echo "server $NTP_UPSTREAM iburst" >> /etc/ntpsec/ntp.conf
 fi
 

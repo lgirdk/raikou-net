@@ -4,17 +4,28 @@ if [ "$LEGACY" == "no" ]; then
     isolate_docker_iface
 fi
 
-sed -i 's/user=genieacs/user=root/g' /etc/supervisor/conf.d/supervisord.conf
-sed -i '/\[program:genieacs-cwmp\]/a user=genieacs' /etc/supervisor/conf.d/supervisord.conf
-sed -i '/\[program:genieacs-nbi\]/a user=genieacs' /etc/supervisor/conf.d/supervisord.conf
-sed -i '/\[program:genieacs-fs\]/a user=genieacs' /etc/supervisor/conf.d/supervisord.conf
-sed -i '/\[program:genieacs-ui\]/a user=genieacs' /etc/supervisor/conf.d/supervisord.conf
-sed -i '/\[program:sshd\]/a user=root' /etc/supervisor/conf.d/supervisord.conf
-echo -e "\n[program:sshd]\ncommand=/usr/sbin/sshd -D\nautorestart=true\nuser=root" >>/etc/supervisor/conf.d/supervisord.conf
+# Patch supervisord.conf idempotently: a restart of an existing container
+# previously piled duplicate `user=` lines and re-appended the sshd block.
+SUPERVISORD_CONF=/etc/supervisor/conf.d/genieacs.conf
+if ! grep -q '# raikou-managed' "$SUPERVISORD_CONF"; then
+    sed -i 's/user=genieacs/user=root/g' "$SUPERVISORD_CONF"
+    sed -i '/\[program:genieacs-cwmp\]/a user=genieacs' "$SUPERVISORD_CONF"
+    sed -i '/\[program:genieacs-nbi\]/a user=genieacs' "$SUPERVISORD_CONF"
+    sed -i '/\[program:genieacs-fs\]/a user=genieacs'  "$SUPERVISORD_CONF"
+    sed -i '/\[program:genieacs-ui\]/a user=genieacs'  "$SUPERVISORD_CONF"
+    {
+        echo ""
+        echo "# raikou-managed"
+        echo "[program:sshd]"
+        echo "command=/usr/sbin/sshd -D"
+        echo "autorestart=true"
+        echo "user=root"
+    } >> "$SUPERVISORD_CONF"
+fi
 
 if [ $# -gt 0 ]; then
-    /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
+    /usr/bin/supervisord -c /etc/supervisor/conf.d/genieacs.conf
     exec "$@"
 else
-    /usr/bin/supervisord -n -c /etc/supervisor/conf.d/supervisord.conf
+    /usr/bin/supervisord -n -c /etc/supervisor/conf.d/genieacs.conf
 fi
