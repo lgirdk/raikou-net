@@ -59,18 +59,18 @@
             }
         ]
     },
-    "vlan_translations": [
-        {
+    "veth_pairs": {
+        "mgmt": {
             "map": "131:100",
             "on": "cpe-to-bng"
         },
-        {
+        "data": {
             "map": "121:200",
             "on": "cpe-to-bng"
         },
-        {
+        "voice": {
             "map": "117:300",
             "on": "cpe-to-bng"
         }
-    ]
+    }
 }
