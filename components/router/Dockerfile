@@ -1,4 +1,4 @@
-FROM ssh:v1.2.0
+FROM ssh:v2.0.0
 
 LABEL maintainer="ktewari@libertyglobal.com"
 LABEL version="frr_10.0"
@@ -122,10 +122,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     # Clear Cache
     rm -rf /var/lib/apt/lists/* && \
     \
-    # Permissions
-    mv /root/frr.conf /etc/frr/frr.conf && \
-    mv /root/staticd.conf /etc/frr/staticd.conf && \
-    chown -R frr /etc/frr && \
+    # Permissions — ship baked defaults as templates under /etc/frr.dist/.
+    # init regenerates /etc/frr/frr.conf from the template on every start,
+    # so restarts can't double-append env-driven interface blocks. If a user
+    # bind-mounts /etc/frr/frr.conf, init leaves the mount alone.
+    mkdir -p /etc/frr.dist && \
+    mv /root/frr.conf /etc/frr.dist/frr.conf && \
+    mv /root/staticd.conf /etc/frr.dist/staticd.conf && \
+    chown -R frr /etc/frr /etc/frr.dist && \
     chmod +x init && \
     echo "root:bigfoot1" | chpasswd
 

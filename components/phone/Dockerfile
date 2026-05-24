@@ -30,14 +30,16 @@ RUN apt-get update && \
     && sed -i 's/.*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config \
     && sed -i 's/.*Gateway Ports.*/GatewayPorts yes/' /etc/ssh/sshd_config \
     && sed -i 's/.*PermitTunnel.*/PermitTunnel yes/' /etc/ssh/sshd_config \
-    && mkdir /var/run/sshd \
+    && mkdir -p /var/run/sshd \
     && chmod +x /root/init.sh \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 COPY ./resources/pjsua_2_14_dev /root/pjsua
-COPY ./resources/dhclient-script /sbin/dhclient-script
-COPY ./resources/dhclient.conf /etc/dhcp/dhclient.conf
+# DHCP client defaults ship to .dist/ — init copies them in if no override
+# is mounted, so compose can bind-mount /etc/dhcp/dhclient.conf cleanly.
+COPY ./resources/dhclient-script /sbin/dhclient-script.dist
+COPY ./resources/dhclient.conf /etc/dhcp.dist/dhclient.conf
 
 ENV PATH="/root:${PATH}"
 

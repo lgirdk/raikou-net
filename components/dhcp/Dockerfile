@@ -1,7 +1,7 @@
-FROM ssh:v1.2.0
+FROM ssh:v2.0.0
 
 LABEL maintainer="ktewari@libertyglobal.com"
-LABEL version="kea-2-6"
+LABEL version="kea-3-0"
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -29,7 +29,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/* && \
     \
     # Install KEA debian package
-    curl -1sLf 'https://dl.cloudsmith.io/public/isc/kea-2-6/setup.deb.sh'| bash && \
+    curl -1sLf 'https://dl.cloudsmith.io/public/isc/kea-3-0/setup.deb.sh'| bash && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
     isc-kea-admin \
@@ -39,15 +39,17 @@ RUN apt-get update && \
     isc-kea-dhcp6  \
     isc-kea-doc    \
     isc-kea-dhcp-ddns  && \
-    rm /etc/apt/sources.list.d/isc-kea-2-6.list && \
+    rm /etc/apt/sources.list.d/isc-kea-3-0.list && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 COPY ./resources/kea_api.py /root/kea_api.py
 COPY ./resources/init /root/init
-COPY ./resources/kea-ctrl-agent.conf /etc/kea/
-COPY ./resources/kea-dhcp4.conf /etc/kea/
-COPY ./resources/kea-dhcp6.conf /etc/kea/
-COPY ./resources/keactrl.conf /etc/kea/
+# Defaults ship to /etc/kea.dist/ — init copies any missing entry into /etc/kea/
+# on first start, so a compose mount on /etc/kea/<file> is a true override.
+COPY ./resources/kea-ctrl-agent.conf /etc/kea.dist/
+COPY ./resources/kea-dhcp4.conf /etc/kea.dist/
+COPY ./resources/kea-dhcp6.conf /etc/kea.dist/
+COPY ./resources/keactrl.conf /etc/kea.dist/
 COPY ./resources/keactrl /usr/sbin/
 
 ENV PATH "/sbin:/bin:/usr/sbin:/usr/bin"

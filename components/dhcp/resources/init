@@ -1,15 +1,22 @@
 #! /bin/bash -xe
 
 # Ensure isolation of eth0 interface.
-if [ $LEGACY == "no" ]; then
+if [ "$LEGACY" == "no" ]; then
     isolate_docker_iface
 fi
+
+# Seed /etc/kea/ from baked defaults only if no override is already present
+# (compose can bind-mount any of these files; a mount wins and we leave it alone).
+mkdir -p /etc/kea
+for f in kea-ctrl-agent.conf kea-dhcp4.conf kea-dhcp6.conf keactrl.conf; do
+    [ -f "/etc/kea/$f" ] || cp "/etc/kea.dist/$f" "/etc/kea/$f"
+done
 
 # Mandatory wait
 # The container requires an eth1 interface to run the DHCP server configuration
 # Will be stuck in an infinite loop if eth1 interface is not present.
-while [ -z $(ls /sys/class/net | grep -w eth1) ]; do
-    echo "WAN interface "eth1" not found"
+while ! find /sys/class/net -mindepth 1 -maxdepth 1 | grep -q -w eth1; do
+    echo "WAN interface \"eth1\" not found"
     sleep 5
 done
 ip link set eth1 up
@@ -20,7 +27,7 @@ sleep 15
 keactrl start
 
 # Run FAST API only in ENV is set
-if [ $FAST_API == "yes" ]; then
+if [ "$FAST_API" == "yes" ]; then
     python3 /root/kea_api.py &
 fi
 
