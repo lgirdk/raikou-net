@@ -1,7 +1,9 @@
-# OVS Configuration Syntax
+# Configuration Syntax
 
 The configuration file (`config.json`) allows you to define the network
-topology and container configurations for your OVS orchestration.
+topology and container configurations for Raikou-Net. The same schema is
+used whether the dataplane is OVS or Linux bridges.
+
 The configuration follows the following syntax:
 
 ```json
@@ -9,18 +11,20 @@ The configuration follows the following syntax:
     "bridge": {
         "bridge_name": {},
         "bridge_with_parent": {
-            "parent": "parent_interface_name"
+            "parents": [
+                { "iface": "parent_interface_name" }
+            ]
         },
         ...
     },
-    "vlan_translations": [
-        {
-            "from": "source_bridge",
-            "to": "destination_bridge",
-            "map": "source_vlan:destination_vlan"
+    "veth_pairs": {
+        "veth_prefix": {
+            "on": "bridge_name",
+            "map": "source_vlan:destination_vlan",
+            "trunk": "no"
         },
         ...
-    ],
+    },
     "container": {
         "container_name": [
             {
@@ -34,29 +38,47 @@ The configuration follows the following syntax:
     }
 }
 ```
+
 ---
+
 ## Bridge Configuration
 
-Under the `"bridge"` section, you define the OVS bridges you want to create.
-Each bridge should be specified as a key-value pair, where the key is the bridge
-name and the value is either an empty object `{}` or an object with a `"parent"`
-property.
+Under the `"bridge"` section, you define the bridges you want to create.
+Each bridge should be specified as a key-value pair, where the key is the
+bridge name and the value is either an empty object `{}` or an object with
+a `"parents"` list (and optionally `iprange` / `ip6range` / `ipaddress` /
+`ip6address`).
 
-If a bridge requires a parent interface, you can specify it by including a
-`"parent"` property within the bridge object. The value of the `"parent"`
-property should be the name of the parent interface.
+If a bridge needs to be connected to one or more host interfaces (e.g. a
+physical NIC), list them under `"parents"`. Each entry is an object with
+at least an `"iface"` key, and may also carry `"vlan"`, `"trunk"`, or
+`"native"` to tag traffic on that parent port:
+
+```json
+"bridge_with_parent": {
+    "parents": [
+        { "iface": "eno3" },
+        { "iface": "eno4", "trunk": "100,200" }
+    ]
+}
+```
 
 ---
 
-## VLAN Translations
+## VLAN Translation via `veth_pairs`
 
-The `"vlan_translations"` section allows you to define VLAN translations
-between source and destination bridges. Each VLAN translation entry should
-have the following properties:
+The `"veth_pairs"` section lets you create a veth pair on a single bridge
+where each leg is tagged with a different VLAN, effectively translating
+between an S-VLAN and a C-VLAN. Each entry is keyed by a short prefix
+(used to name the `v0_<prefix>` / `v1_<prefix>` interfaces, max 8 chars)
+and has the following properties:
 
-- `"from"`: The source bridge name.
-- `"to"`: The destination bridge name.
+- `"on"`: The bridge to attach the veth pair to.
 - `"map"`: The VLAN mapping in the format `"source_vlan:destination_vlan"`.
+  Omit the destination half (e.g. `"100:"`) to leave the `v1_<prefix>` end
+  dangling.
+- `"trunk"` (optional): `"yes"` to attach as trunk ports instead of access
+  ports. Defaults to `"no"`.
 
 ---
 

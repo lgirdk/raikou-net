@@ -14,11 +14,14 @@
     src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json"></a>
 </p> <hr>
 
-Raikou-Net is a Docker container designed to orchestrate networking between
-containers on the same host system using Open vSwitch (OVS).
+Raikou-Net is a Docker-in-Docker orchestrator that wires other containers on
+the same host into a declarative network topology. It can use either
+Open vSwitch (OVS, default) or plain Linux bridges as the dataplane.
 
-It runs as a Docker-in-Docker derived image with privileged mode and leverages
-the host network to create OVS bridges instead of default docker bridges.
+The orchestrator runs `privileged`, `pid: host`, and `network_mode: host`,
+mounts the host Docker socket, and pushes veth interfaces into peer
+containers based on a single declarative `config.json`. It also exposes a
+small FastAPI REST surface for mutating topology on the fly.
 
 
 ## Benefits of Using Open vSwitch (OVS) for Docker Networking
@@ -57,19 +60,26 @@ effectively, refer to the documentation on
 
 ## Features
 
-- Creation of veth pairs and attachment of OVS bridges to containers
-- Setting VLAN trunk/access port on container designated OVS interfaces
-- Support for IPv6 address assignment
-- Managing external IDs for VLAN translation
+- Two interchangeable dataplane backends: OVS (default) or Linux bridges
+  (`USE_LINUX_BRIDGE=true`)
+- Declarative topology from a single `config.json`, hot-reloaded every 15s
+- Attaches containers to bridges via `ovs-docker` / `lxbr-docker`
+- VLAN access / trunk / native tagging on container ports
+- VLAN translation via `veth_pairs` (S-VLAN ↔ C-VLAN)
+- Static or auto-allocated IPv4 / IPv6 addressing, with gateway and MAC
+- FastAPI REST endpoints to add/remove bridges, container ifaces, and
+  veth pairs at runtime without rewriting `config.json`
 
 ## Prerequisites
 
-Before deploying the OVS Orchestrator, ensure that you have the following prerequisites:
+Before deploying Raikou-Net, ensure that you have the following prerequisites:
 
 - Docker installed on the host machine.
-- OVS installed on the host machine
+- OVS installed on the host machine (only if running with the default OVS
+  backend; not required when `USE_LINUX_BRIDGE=true`).
+- The `openvswitch` kernel module loadable from the host (OVS backend only).
 - Basic understanding of Docker and container networking concepts.
-- A properly configured `config.json` file for OVS configuration.
+- A properly configured `config.json` file for the topology.
 
 To install openvswitch in Debian/Ubuntu:
 ```bash
@@ -86,19 +96,18 @@ To install docker engine and compose plugin, please follow the below link: <br>
 
 ## Deployment
 
-To deploy the OVS Orchestrator, follow these steps:
+To deploy Raikou-Net, follow these steps:
 
 1. Clone the Raikou-Net repository.
 
-2. Prepare the `config.json` file with the necessary OVS configuration.
+2. Prepare the `config.json` file with the necessary topology configuration.
 Ensure it is placed in the same directory as the Raikou-Net files.
 For syntax details, please refer to the following page:
-[Raikou-Net OVS Configuration Syntax](./docs/README_CONFIG.md)
+[Raikou-Net Configuration Syntax](./docs/CONFIG.README.md)
 
 3. Create a `docker-compose.yml` file with the desired container dependencies and configuration.
 
     ```yaml
-    version: "3.9"
     services:
         raikou:
             build:
@@ -113,6 +122,9 @@ For syntax details, please refer to the following page:
             pid: "host"
             network_mode: "host"
             hostname: "orchestrator"
+            environment:
+                USE_LINUX_BRIDGE: "false"   # "true" -> brctl/bridge instead of OVS
+                DEBUG: "no"
             depends_on:
                 - container1
                 - container2
@@ -133,9 +145,9 @@ For syntax details, please refer to the following page:
    docker-compose build
    ```
 
-   This command builds the OVS Orchestrator image based on the provided Dockerfile.
+   This command builds the Raikou-Net image based on the provided Dockerfile.
 
-5. Run the following command to start the OVS Orchestrator container:
+5. Run the following command to start the Raikou-Net container:
 
    ```shell
    docker-compose up -d
@@ -144,12 +156,67 @@ For syntax details, please refer to the following page:
    This command starts the container in detached mode,
    allowing it to run in the background.
 
-6. Verify that the OVS Orchestrator container is running by checking the
+6. Verify that the Raikou-Net container is running by checking the
 container logs or running `docker ps`.
 
+> The reconcile loop re-reads `/root/config.json` every 15 seconds, so most
+> topology edits take effect without restarting the container. `docker
+> compose restart raikou` is only needed if reconcile gives up after
+> repeated failures.
 
+### Environment knobs
 
-## How does the OVS configuration work?
+The orchestrator container reads these env vars (defaults from the
+[Dockerfile](Dockerfile)):
+
+| Variable             | Default   | Purpose                                                                  |
+| -------------------- | --------- | ------------------------------------------------------------------------ |
+| `USE_LINUX_BRIDGE`   | `false`   | Use `brctl`/`bridge` instead of OVS. Skips supervisord's `ovsvswitch`.   |
+| `DEBUG`              | `no`      | `yes` raises the logger level to DEBUG.                                  |
+| `UVICORN_HOST`       | `0.0.0.0` | Bind address for the REST API.                                           |
+| `UVICORN_PORT`       | `8080`    | Listen port for the REST API.                                            |
+| `DOCKER_API_VERSION` | `1.41`    | Pinned because the bundled Docker CLI may be newer than the host daemon. |
+
+### Overriding peer-component configs via compose mounts
+
+Every component image under [components/](components/) ships its defaults
+under a sibling `.dist/` directory (for example `/etc/kea.dist/`,
+`/etc/frr.dist/`, `/etc/kamailio.dist/`, `/root/aftr.dist/`). The container's
+`init` script copies any missing entry into the live path on startup, so a
+`docker compose` bind-mount on the live path is treated as an authoritative
+override — the baked default is left alone.
+
+In practice that means a stanza like
+
+```yaml
+dhcp:
+    image: ghcr.io/.../dhcp:v1
+    volumes:
+        - ./config/kea-dhcp4.conf:/etc/kea/kea-dhcp4.conf
+```
+
+fully replaces the baked `kea-dhcp4.conf`. No mount → the baked default ships
+through unchanged.
+
+The router image goes one step further: `/etc/frr/frr.conf` is regenerated
+from `/etc/frr.dist/frr.conf` on every start and then env-driven interface
+blocks are appended, so restarts cannot double-append. If you bind-mount
+`/etc/frr/frr.conf` the regeneration and the env-driven appends are both
+skipped — the mount is treated as your authoritative copy.
+
+### Live mutation via REST API
+
+`uvicorn` serves a FastAPI app on `UVICORN_HOST:UVICORN_PORT` with three
+routers ([app/routers/](app/routers/)):
+
+- `/bridge`    — create / delete / inspect bridges
+- `/container` — attach or detach container interfaces
+- `/veth`      — create / delete VLAN-translating veth pairs
+
+Each handler takes `EVENT_LOCK` before mutating host networking, so it is
+safe to call concurrently with the 15s reconcile loop.
+
+## How the topology configuration works
 
 Consider we would like to have board, lan and router containers
 connected to each other in the following topology:
@@ -157,8 +224,11 @@ connected to each other in the following topology:
 ![image](./docs/network.svg)
 
 This can be achieved with the following steps:
-#### Step 1: Create the necessary OVS bridges.
-We would require 2 bridges ```cpe_wan``` and ```cpe_lan``` in this case
+
+#### Step 1: Create the necessary OVS bridges
+
+We would require 2 bridges ```cpe-wan``` and ```cpe-lan``` in this case
+
 ```json
 {
     "bridge": {
@@ -167,9 +237,12 @@ We would require 2 bridges ```cpe_wan``` and ```cpe_lan``` in this case
     }
 }
 ```
+
 #### Step 2: Connect container to respective bridges
-LAN and board both should get connected to ```cpe_lan``` bridge
+
+LAN and board both should get connected to ```cpe-lan``` bridge
 with interface name ```eth1```
+
 ```json
 {
     "bridge": {
@@ -193,7 +266,7 @@ with interface name ```eth1```
 }
 ```
 
-Board and BNG get connected to ```cpe_wan``` but with a different
+Board and BNG get connected to ```cpe-wan``` but with a different
 interface name.
 
 We can also notice that the board needs to allow 3 VLANs on its interface
@@ -270,9 +343,49 @@ If we want to statically assing IP addresses to a container port.
 
 
 #### Step 3. Restart the docker-compose orchestrator service
+
 ```bash
 docker compose restart
 ```
+
+(Only needed if the live reconcile / REST API can't apply the change.)
+
+## Trying it out with Vagrant (`examples/double_hop/`)
+
+[examples/double_hop/Vagrantfile](examples/double_hop/Vagrantfile) spins up
+an Ubuntu 22.04 VM, installs Docker + the `openvswitch` kernel module, and
+runs the full double-hop stack (orchestrator + router/wan/lan/dhcp/cpe/acs/
+sip/phones/mongo). Every container port published by the compose file is
+forwarded `guest == host`, so the stack is reachable at `localhost:<port>`
+on your workstation.
+
+```bash
+cd examples/double_hop
+vagrant up                                                      # default: docker-compose.ghcr.yaml
+COMPOSE_FILE=docker-compose.yaml          vagrant up            # pick at first boot
+COMPOSE_FILE=docker-compose.ghcr_rdkb.yaml vagrant provision    # switch stack on a running VM
+```
+
+Things worth knowing before you change the Vagrant setup:
+
+- The box is `generic/ubuntu2204` because it ships both VirtualBox and
+  libvirt images. `bento/*` is VirtualBox-only and hangs under libvirt at
+  *"Waiting for domain to get an IP address..."*.
+- The provisioner `modprobe`s `openvswitch` and persists it via
+  `/etc/modules-load.d/openvswitch.conf` — the orchestrator bind-mounts
+  `/lib/modules` and calls `ovs-ctl force-reload-kmod`, which fails
+  without this.
+- A systemd unit (`raikou-double-hop.service`) owns the compose lifecycle.
+  `ExecStart` runs `up -d` on every boot, `ExecStop` runs `compose down`
+  on shutdown so containers exit cleanly before `docker.service` stops.
+- `COMPOSE_FILE` is baked into the unit at provision time, not read at
+  boot. To switch stacks on a running VM, re-run `vagrant provision` with
+  the new value (the provisioner stops the old unit first so the old
+  `ExecStop` tears down the right stack).
+- The synced folder uses `rsync` for provider portability. Edits to
+  `config.json` or `config/kea-dhcp*.conf` on the host do **not**
+  auto-propagate — run `vagrant rsync` (or `vagrant rsync-auto` in a side
+  terminal) and then restart the affected container.
 
 ## Contributing
 
