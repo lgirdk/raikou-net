@@ -11,14 +11,14 @@ services:
             - CPE_DATA_IFACE=cpe
             - CPE_DATA_BUNDLE=10.1.1.1/24,2001:dead:cafe:1::1/64
             - DHCP_RELAY=eth1,172.25.1.20,2001:dead:beef:2::20
-        image: ghcr.io/ketantewari/raikou/router:v1
+        image: ghcr.io/ketantewari/raikou/router:v3
         privileged: true
         hostname: router
 
     cpe:
         container_name: cpe
         restart: always
-        image: ghcr.io/ketantewari/raikou/cpe:v1
+        image: ghcr.io/ketantewari/raikou/cpe:v3
         ports:
             - 4004:22
         privileged: true
@@ -27,7 +27,7 @@ services:
 
     sipcenter:
         container_name: sipcenter
-        image: ghcr.io/ketantewari/raikou/sipcenter:v1
+        image: ghcr.io/ketantewari/raikou/sipcenter:v3
         ports:
             - 4005:22
         environment:
@@ -40,7 +40,7 @@ services:
 
     lan-phone:
         container_name: lan-phone
-        image: ghcr.io/ketantewari/raikou/sipphone:v1
+        image: ghcr.io/ketantewari/raikou/sipphone:v3
         ports:
             - 4006:22
         environment:
@@ -50,7 +50,7 @@ services:
 
     wan-phone:
         container_name: wan-phone
-        image: ghcr.io/ketantewari/raikou/sipphone:v1
+        image: ghcr.io/ketantewari/raikou/sipphone:v3
         ports:
             - 4007:22
         environment:
@@ -60,7 +60,7 @@ services:
 
     wan:
         container_name: wan
-        image: ghcr.io/ketantewari/raikou/wan:v1
+        image: ghcr.io/ketantewari/raikou/wan:v3
         ports:
             - 4001:22
             - 8001:8080
@@ -72,7 +72,7 @@ services:
 
     lan:
         container_name: lan
-        image: ghcr.io/ketantewari/raikou/lan:v1
+        image: ghcr.io/ketantewari/raikou/lan:v3
         ports:
             - 4002:22
             - 8002:8080
@@ -83,7 +83,7 @@ services:
 
     dhcp:
         container_name: dhcp
-        image: ghcr.io/ketantewari/raikou/dhcp:v1
+        image: ghcr.io/ketantewari/raikou/dhcp:v3
         ports:
             - 4003:22
         environment:
@@ -95,11 +95,11 @@ services:
             - ./config/kea-dhcp6.conf:/etc/kea/kea-dhcp6.conf
 
     mongo:
-        image: mongo:4.4
-        restart: always
-        privileged: true
+        image: mongo:8.0
+        restart: unless-stopped
         container_name: mongo
         hostname: mongo
+        privileged: true
         environment:
             - MONGO_INITDB_ROOT_USERNAME=admin
             - MONGO_INITDB_ROOT_PASSWORD=bigfoot1
@@ -114,8 +114,8 @@ services:
     acs:
         depends_on:
             - mongo
-        image: ghcr.io/ketantewari/raikou/acs:v1
-        restart: always
+        image: ghcr.io/ketantewari/raikou/acs:v3
+        restart: unless-stopped
         container_name: acs
         hostname: acs
         environment:
@@ -136,11 +136,11 @@ services:
             - 7567:7567
             - 3000:3000
         volumes:
-            - opt_volume:/opt
+            - opt_volume:/opt/genieacs/ext
 
     raikou-net:
         container_name: orchestrator
-        image: ghcr.io/ketantewari/raikou/orchestrator:v1
+        image: ghcr.io/ketantewari/raikou/orchestrator:v3
         volumes:
             - /lib/modules:/lib/modules
             - /var/run/docker.sock:/var/run/docker.sock

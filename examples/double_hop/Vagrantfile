@@ -1,0 +1,141 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+#
+# Brings up an Ubuntu VM, installs Docker + Open vSwitch kernel module,
+# and starts a double_hop stack from one of the docker-compose*.yaml files
+# in this directory.
+#
+# Every host:container port published by the selected compose file is
+# forwarded guest==host, so published services are reachable at
+# localhost:<port> on the workstation. Works the same under VirtualBox and
+# libvirt — `generic/ubuntu2204` ships images for both providers.
+#
+# Pick the compose file at runtime via the COMPOSE_FILE env var. Examples:
+#
+#   vagrant up                                                # default file
+#   COMPOSE_FILE=docker-compose.yaml          vagrant up
+#   COMPOSE_FILE=docker-compose.ghcr_rdkb.yaml vagrant up
+#
+# To switch on an already-running VM, re-run provisioning with the new value:
+#
+#   COMPOSE_FILE=docker-compose.yaml vagrant provision
+#
+# This will tear the old stack down cleanly, rewrite the systemd unit, and
+# start the new stack.
+
+COMPOSE_FILE = ENV.fetch("COMPOSE_FILE", "docker-compose.ghcr.yaml")
+
+compose_path = File.join(__dir__, COMPOSE_FILE)
+unless File.exist?(compose_path)
+  abort "COMPOSE_FILE=#{COMPOSE_FILE} not found in #{__dir__}"
+end
+
+# Scrape `host:container` mappings out of the chosen compose file's `ports:`
+# blocks. Keeps the forwarding list in lock-step with whatever the stack
+# actually publishes, without pulling in a YAML parser.
+PORTS = File.readlines(compose_path).filter_map { |line|
+  line.match(/^\s*-\s+"?(\d+):(\d+)"?\s*$/) { |m| [m[1].to_i, m[2].to_i] }
+}.uniq
+
+Vagrant.configure("2") do |config|
+  config.vm.box      = "generic/ubuntu2204"
+  config.vm.hostname = "raikou-double-hop"
+
+  # Make this directory available inside the VM so the orchestrator can read
+  # config.json and the kea configs referenced by the compose file. rsync
+  # keeps the VM file tree independent of guest additions; re-sync with
+  # `vagrant rsync` (or `vagrant rsync-auto` in a side terminal) after
+  # editing configs.
+  config.vm.synced_folder ".", "/vagrant",
+    type: "rsync",
+    rsync__exclude: [".git/", ".vagrant/"]
+
+  PORTS.each do |host_port, guest_port|
+    config.vm.network "forwarded_port",
+      guest: guest_port, host: host_port, host_ip: "0.0.0.0"
+  end
+
+  config.vm.provider "virtualbox" do |vb|
+    vb.memory = 4096
+    vb.cpus   = 2
+  end
+
+  config.vm.provider "libvirt" do |lv|
+    lv.memory = 4096
+    lv.cpus   = 2
+  end
+
+  config.vm.provision "shell",
+    env: { "COMPOSE_FILE" => COMPOSE_FILE },
+    inline: <<-SHELL
+    set -eux
+    export DEBIAN_FRONTEND=noninteractive
+    : "${COMPOSE_FILE:?COMPOSE_FILE must be set}"
+    test -f "/vagrant/${COMPOSE_FILE}" \
+      || { echo "compose file /vagrant/${COMPOSE_FILE} missing" >&2; exit 1; }
+
+    apt-get update
+    apt-get install -y \
+      ca-certificates curl gnupg lsb-release \
+      openvswitch-switch
+
+    # The orchestrator container bind-mounts /lib/modules from the VM and
+    # expects the openvswitch kernel module to be loadable.
+    modprobe openvswitch
+    echo openvswitch > /etc/modules-load.d/openvswitch.conf
+
+    # Install Docker Engine + Compose plugin from the official repo.
+    if ! command -v docker >/dev/null 2>&1; then
+      install -m 0755 -d /etc/apt/keyrings
+      curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+        | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+      chmod a+r /etc/apt/keyrings/docker.gpg
+      . /etc/os-release
+      echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $VERSION_CODENAME stable" \
+        > /etc/apt/sources.list.d/docker.list
+      apt-get update
+      apt-get install -y \
+        docker-ce docker-ce-cli containerd.io \
+        docker-buildx-plugin docker-compose-plugin
+    fi
+
+    usermod -aG docker vagrant
+
+    cd /vagrant
+    docker compose -f "${COMPOSE_FILE}" pull
+
+    # If a previous unit is running (possibly pointing at a different compose
+    # file), stop it first so its old ExecStop tears down the right stack
+    # before we rewrite the unit.
+    if systemctl is-active --quiet raikou-double-hop.service; then
+      systemctl stop raikou-double-hop.service
+    fi
+
+    # Install a systemd unit that owns the lifecycle of the compose stack.
+    # ExecStart runs `up -d` on boot; ExecStop runs `down` on shutdown,
+    # giving containers a clean exit before docker.service stops.
+    cat > /etc/systemd/system/raikou-double-hop.service <<UNIT
+[Unit]
+Description=Raikou double_hop docker compose stack (${COMPOSE_FILE})
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/vagrant
+Environment=COMPOSE_FILE=${COMPOSE_FILE}
+ExecStart=/usr/bin/docker compose -f ${COMPOSE_FILE} up -d
+ExecStop=/usr/bin/docker compose -f ${COMPOSE_FILE} down
+TimeoutStartSec=600
+TimeoutStopSec=180
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+    systemctl daemon-reload
+    systemctl enable --now raikou-double-hop.service
+  SHELL
+end
