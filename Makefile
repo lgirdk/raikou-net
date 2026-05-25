@@ -8,6 +8,10 @@
 
 .DEFAULT_GOAL := help
 SHELL         := /bin/bash
+# pipefail so a mid-stream failure in `docker save | gzip | vagrant ssh` (or
+# any other recipe pipeline) actually fails the recipe instead of silently
+# producing a truncated stream that downstream tools accept as "success".
+.SHELLFLAGS   := -o pipefail -c
 
 # ----- Configuration (override on CLI: `make push VERSION=v4`) -----
 GHCR_REGISTRY ?= ghcr.io/ketantewari/raikou
@@ -27,7 +31,7 @@ export REGISTRY := $(GHCR_REGISTRY)
 # doesn't need to duplicate the membership list.
 IMAGES := orchestrator ssh router wan lan dhcp ntp cpe acs sipcenter sipphone router-ethernet
 
-.PHONY: help lint build build-orchestrator build-components $(IMAGES) bump push clean
+.PHONY: help lint build build-orchestrator build-components $(IMAGES) bump push clean smoke smoke-up smoke-down smoke-logs _smoke_ship _smoke_compose_up _smoke_probe all
 
 # ----- Help -----
 help: ## Show this help and exit
@@ -93,6 +97,77 @@ clean: ## Remove local image tags this Makefile produced (no -f)
 	  $(DOCKER) rmi "$(GHCR_REGISTRY)/$$img:latest"    2>/dev/null || true; \
 	done
 
-# NOTE: smoke targets and a composite `all` target are added by Task 5,
-# once scripts/smoke-probe.sh exists. Keeping this Makefile self-contained
-# until then.
+# ----- Smoke (host ↔ Vagrant ↔ probe) -----
+#
+# Smoke must run inside the Vagrant VM: the CPE image exec /sbin/init,
+# which interferes with host PID 1 / cgroups when run directly on the
+# Docker host. The VM provides the isolation.
+#
+# Flow:
+#   1. make build    — host builds the matrix, producing GHCR-tagged images.
+#   2. vagrant up    — bring the VM up. First boot runs the provisioner
+#                       (installs Docker + OVS in the VM); subsequent ups
+#                       are no-ops, so this is safe to call every time.
+#   3. vagrant rsync — push latest scripts/, configs, compose files.
+#   4. docker save | gzip | ssh ... docker load — stream the 9 compose-
+#      referenced images into the VM's docker daemon (avoids rsync'ing a
+#      5+ GB tarball through the synced folder).
+#   5. compose up    — start the stack with --pull=missing so the locally
+#                       loaded raikou images are reused (no re-pull from
+#                       GHCR), while still pulling mongo:8.0 from Docker
+#                       Hub since it isn't in SMOKE_IMAGES.
+#   6. smoke-probe.sh — run the four probes inside the VM.
+#   7. teardown — `make smoke-down` always runs, on success and failure.
+#
+# Override COMPOSE_FILE=… to smoke a different compose variant later.
+
+SMOKE_IMAGES := orchestrator router wan lan dhcp cpe acs sipcenter sipphone
+SMOKE_DIR    := examples/double_hop
+
+smoke: build ## Full smoke: build + ship to VM + compose up + probe + teardown
+	@trap '$(MAKE) smoke-logs > smoke.log 2>&1 || true; $(MAKE) smoke-down' EXIT; \
+	$(MAKE) _smoke_ship && \
+	$(MAKE) _smoke_compose_up && \
+	$(MAKE) _smoke_probe
+
+smoke-up: build ## Build + ship + compose up; leaves VM running for manual poking
+	$(MAKE) _smoke_ship
+	$(MAKE) _smoke_compose_up
+	@echo "VM is up. Probe with: make _smoke_probe   Teardown with: make smoke-down"
+
+smoke-down: ## Tear down the stack and halt the VM (safe anytime)
+	-cd $(SMOKE_DIR) && vagrant ssh -c "cd /vagrant/$(SMOKE_DIR) && docker compose -f $(COMPOSE_FILE) down -v" 2>/dev/null || true
+	-cd $(SMOKE_DIR) && vagrant halt 2>/dev/null || true
+
+smoke-logs: ## Dump orchestrator.log + per-service compose logs from the VM
+	@cd $(SMOKE_DIR) && vagrant ssh -c '\
+	  cd /vagrant/$(SMOKE_DIR); \
+	  echo "===== docker ps -a ====="; \
+	  docker ps -a; \
+	  echo; echo "===== /var/log/orchestrator.log ====="; \
+	  docker exec orchestrator cat /var/log/orchestrator.log 2>&1 || true; \
+	  for svc in $$(docker compose -f $(COMPOSE_FILE) config --services); do \
+	    echo; echo "===== $$svc logs ====="; \
+	    docker compose -f $(COMPOSE_FILE) logs --no-color "$$svc" || true; \
+	  done'
+
+# ----- Internal helpers (underscore-prefixed; not for direct use) -----
+_smoke_ship:
+	@echo "[smoke] saving $(words $(SMOKE_IMAGES)) images to VM..."
+	@cd $(SMOKE_DIR) && vagrant up
+	@cd $(SMOKE_DIR) && vagrant rsync
+	@$(DOCKER) save \
+	  $(foreach i,$(SMOKE_IMAGES),$(GHCR_REGISTRY)/$(i):$(VERSION)) \
+	  | gzip \
+	  | (cd $(SMOKE_DIR) && vagrant ssh -c 'gunzip | docker load')
+
+_smoke_compose_up:
+	@cd $(SMOKE_DIR) && vagrant ssh -c '\
+	  cd /vagrant/$(SMOKE_DIR) && \
+	  docker compose -f $(COMPOSE_FILE) --env-file .env up -d --pull=missing'
+
+_smoke_probe:
+	@cd $(SMOKE_DIR) && vagrant ssh -c 'bash /vagrant/scripts/smoke-probe.sh'
+
+# ----- Composite -----
+all: lint build smoke ## Full local CI: lint + build + smoke
