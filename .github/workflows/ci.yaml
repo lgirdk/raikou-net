@@ -1,0 +1,89 @@
+---
+name: CI
+
+on:
+    pull_request:
+    push:
+        branches: [main]
+
+concurrency:
+    group: ci-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    lint:
+        name: Lint (pre-commit)
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Set up Python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: '3.11'
+
+            - name: Cache pre-commit
+              uses: actions/cache@v4
+              with:
+                  path: ~/.cache/pre-commit
+                  key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+
+            - name: Install pre-commit
+              run: pip install pre-commit
+
+            - name: Run pre-commit
+              run: make lint
+
+    build-smoke:
+        name: Build + Smoke (Vagrant)
+        runs-on: ubuntu-latest
+        timeout-minutes: 45
+        steps:
+            - uses: actions/checkout@v4
+
+            # GitHub-hosted ubuntu-latest runners stopped shipping Vagrant +
+            # VirtualBox in mid-2024 (image-size reduction). Install them
+            # explicitly. Ubuntu's package versions are sufficient for our
+            # use; no HashiCorp APT repo dance needed.
+            - name: Install Vagrant + VirtualBox
+              run: |
+                  sudo apt-get update -qq
+                  sudo apt-get install -y -qq vagrant virtualbox
+
+            - name: Cache Vagrant boxes
+              uses: actions/cache@v4
+              with:
+                  path: ~/.vagrant.d/boxes
+                  key: vagrant-boxes-${{ hashFiles('examples/double_hop/Vagrantfile') }}
+
+            - name: Show docker / buildx / vagrant versions
+              run: |
+                  docker version
+                  docker buildx version
+                  vagrant --version
+
+            - name: Build all images
+              run: make build
+
+            - name: Smoke (Vagrant)
+              run: make smoke
+
+            - name: Collect failure artifacts
+              if: failure()
+              run: |
+                  set +e
+                  tar czf ci-smoke-artifacts.tar.gz smoke.log
+                  ls -l ci-smoke-artifacts.tar.gz || true
+
+            - name: Upload failure artifacts
+              if: failure()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: smoke-failure-${{ github.run_id }}
+                  path: ci-smoke-artifacts.tar.gz
+                  if-no-files-found: ignore
+
+            - name: Teardown VM
+              if: always()
+              run: make smoke-down
