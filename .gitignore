@@ -135,3 +135,7 @@ dmypy.json
 # version pin consumed by docker compose), not a local-override secrets
 # file. Exempt it from the blanket .env ignore above.
 !examples/*/.env
+
+# Smoke-test artifacts produced by `make smoke`
+smoke.log
+ci-smoke-artifacts.tar.gz
