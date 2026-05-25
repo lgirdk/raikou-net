@@ -130,3 +130,8 @@ dmypy.json
 
 # Vagrant runtime state
 .vagrant/
+
+# `examples/*/.env` is tracked source-controlled config (it carries the
+# version pin consumed by docker compose), not a local-override secrets
+# file. Exempt it from the blanket .env ignore above.
+!examples/*/.env
