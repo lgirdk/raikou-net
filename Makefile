@@ -31,7 +31,7 @@ export REGISTRY := $(GHCR_REGISTRY)
 # doesn't need to duplicate the membership list.
 IMAGES := orchestrator ssh router wan lan dhcp ntp cpe acs sipcenter sipphone router-ethernet
 
-.PHONY: help lint build build-orchestrator build-components $(IMAGES) bump push clean smoke smoke-up smoke-down smoke-logs _smoke_ship _smoke_compose_up _smoke_probe all
+.PHONY: help lint build build-orchestrator build-components $(IMAGES) bump push clean smoke smoke-up smoke-down smoke-logs _smoke_ship _smoke_compose_up _smoke_probe demo demo-down all
 
 # ----- Help -----
 help: ## Show this help and exit
@@ -134,6 +134,21 @@ smoke-up: build ## Build + ship + compose up; leaves VM running for manual pokin
 	$(MAKE) _smoke_ship
 	$(MAKE) _smoke_compose_up
 	@echo "VM is up. Probe with: make _smoke_probe   Teardown with: make smoke-down"
+
+# ----- Demo (no local build; runs the published GHCR stack in Vagrant) -----
+# Unlike `smoke`, the demo target does not build images locally — it just
+# brings the Vagrant VM up and lets the systemd unit `compose up` pull the
+# published `ghcr.io/ketantewari/raikou/*:${VERSION}` images. Good for
+# kicking the tyres without waiting on a full host build.
+demo: ## Run the published GHCR stack in Vagrant (no local build)
+	cd $(SMOKE_DIR) && vagrant up
+	@echo ""
+	@echo "Demo stack is up. Forwarded ports are listed in the Vagrantfile;"
+	@echo "the orchestrator REST API is on http://localhost:8080."
+	@echo "Teardown:  make demo-down"
+
+demo-down: ## Halt the demo VM (the systemd unit's ExecStop tears down the stack)
+	-cd $(SMOKE_DIR) && vagrant halt 2>/dev/null || true
 
 smoke-down: ## Tear down the stack and halt the VM (safe anytime)
 	-cd $(SMOKE_DIR) && vagrant ssh -c "cd /vagrant/$(SMOKE_DIR) && docker compose -f $(COMPOSE_FILE) down -v" 2>/dev/null || true

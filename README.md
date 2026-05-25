@@ -70,6 +70,36 @@ effectively, refer to the documentation on
 - FastAPI REST endpoints to add/remove bridges, container ifaces, and
   veth pairs at runtime without rewriting `config.json`
 
+## Building from source
+
+The repo ships a top-level `Makefile` that wraps `docker buildx bake`,
+pre-commit, Vagrant, and the GHCR push flow. Run `make help` to see every
+target with a one-line description.
+
+| Target                    | Purpose                                                                       |
+| ------------------------- | ----------------------------------------------------------------------------- |
+| `make help`               | Print every target with its description                                       |
+| `make lint`               | Run `pre-commit run --all-files`                                              |
+| `make build`              | Build the orchestrator + 11 component images                                  |
+| `make build-orchestrator` | Build only the top-level orchestrator image                                   |
+| `make build-components`   | Build only the component images (no orchestrator)                             |
+| `make <name>`             | Build a single image — e.g. `make router`, `make ssh`, `make cpe`             |
+| `make bump VERSION=v4`    | Bump the published image tag (rewrites `VERSION` and `examples/*/.env`)       |
+| `make push`               | Push the 11-image set to GHCR (`LATEST=no` to skip the `:latest` tag)         |
+| `make demo`               | Spin up the published GHCR stack inside Vagrant (no local build)              |
+| `make demo-down`          | Halt the demo VM                                                              |
+| `make smoke`              | Build locally + ship to Vagrant + run the smoke probe + teardown              |
+| `make smoke-up`           | Same as `smoke` minus the probe and teardown (leaves the VM up for poking)    |
+| `make smoke-logs`         | Dump orchestrator log + per-service compose logs from inside the VM           |
+| `make clean`              | Remove local image tags this Makefile produced                                |
+
+The image matrix is declared in [docker-bake.hcl](docker-bake.hcl). `make
+build` produces both local tags (`ssh:v2.0.0`, used to resolve downstream
+`FROM` lines) and GHCR-style tags
+(`ghcr.io/ketantewari/raikou/<name>:${VERSION}` and `:latest`). See the
+[Developer notes](#developer-notes) section below for the versioning
+protocol.
+
 ## Prerequisites
 
 Before deploying Raikou-Net, ensure that you have the following prerequisites:
@@ -359,12 +389,26 @@ sip/phones/mongo). Every container port published by the compose file is
 forwarded `guest == host`, so the stack is reachable at `localhost:<port>`
 on your workstation.
 
+For a one-command demo of the published GHCR stack (no local build):
+
+```bash
+make demo            # vagrant up — pulls ghcr.io/ketantewari/raikou/*:v3
+make demo-down       # vagrant halt
+```
+
+To pick a different compose variant, run vagrant directly:
+
 ```bash
 cd examples/double_hop
-vagrant up                                                      # default: docker-compose.ghcr.yaml
-COMPOSE_FILE=docker-compose.yaml          vagrant up            # pick at first boot
+COMPOSE_FILE=docker-compose.yaml          vagrant up            # build from local components/
 COMPOSE_FILE=docker-compose.ghcr_rdkb.yaml vagrant provision    # switch stack on a running VM
 ```
+
+`make demo` is the fastest path to "see it work" because it skips the
+local build entirely; `make smoke` (and `make smoke-up`) instead builds
+every image from your local source tree, ships the result into the same
+VM, and runs the stack — use that to validate unmerged changes. CI runs
+`make smoke` on every PR.
 
 Things worth knowing before you change the Vagrant setup:
 
@@ -386,6 +430,64 @@ Things worth knowing before you change the Vagrant setup:
   `config.json` or `config/kea-dhcp*.conf` on the host do **not**
   auto-propagate — run `vagrant rsync` (or `vagrant rsync-auto` in a side
   terminal) and then restart the affected container.
+
+## Developer notes
+
+### Image versioning protocol
+
+This repo has two independent version axes:
+
+| Axis              | Source of truth                  | Bumped by              | Used in                                                                |
+| ----------------- | -------------------------------- | ---------------------- | ---------------------------------------------------------------------- |
+| **Code version**  | git tags, `.cz.toml`             | `cz bump`              | Git release tags (currently `v2.x`)                                    |
+| **Image version** | the `VERSION` file at repo root  | `make bump VERSION=v4` | GHCR image tags via `${VERSION}` interpolation (currently `:v3`)       |
+
+The two cuts intentionally diverge — the published image tag moves on a
+different cadence than the code release line.
+
+`make bump VERSION=v4` does exactly two things:
+
+1. Rewrites the root `VERSION` file.
+2. Rewrites every `examples/*/.env` that already has a `VERSION=` line,
+   so the compose files (which interpolate `${VERSION}` from their
+   sibling `.env`) follow automatically.
+
+It does *not* commit, tag, or push. Review the diff with `git diff`,
+commit it, then run `make push`. Malformed values (empty, no `v` prefix,
+trailing separator) are rejected before any file is touched.
+
+### Pushing to GHCR
+
+`make push` first runs `make build` (so a fresh push always reflects the
+current tree), then `docker buildx bake --push push-set` publishes the
+11-image set with two tags each: `:${VERSION}` and `:latest`.
+
+To push a versioned tag without moving `:latest` (release candidates,
+dev builds):
+
+```bash
+make push LATEST=no
+```
+
+Releases are pushed manually from a developer workstation; CI runs
+`make build` and `make smoke` on every PR but never pushes. The `ssh`
+base image must be reachable in the registry before downstream component
+images can be built from a fresh clone without local source, so `make
+push` always publishes both `ssh` and its dependents in a single bake
+invocation.
+
+### Build matrix
+
+The 12-target image matrix (1 orchestrator + 11 components) is declared
+in [docker-bake.hcl](docker-bake.hcl). The six ssh-dependent components
+(`router`, `wan`, `lan`, `dhcp`, `ntp`, `router-ethernet`) declare
+`contexts = { "ssh:v2.0.0" = "target:ssh" }`, so `docker buildx bake`
+handles the build order natively — `ssh` is built first and wired into
+the downstream `FROM` resolution without ever touching the registry.
+
+One target is build-only (not published to GHCR): `router-ethernet`.
+It is built by CI so a Dockerfile breakage is caught, but is consumed
+by other projects rather than published from this repo.
 
 ## Contributing
 
