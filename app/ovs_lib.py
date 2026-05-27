@@ -12,9 +12,11 @@ from app.utils import (
     USE_LINUX_BRIDGE,
     ContainerInfoDict,
     IfaceInfoDict,
-    get_db,
+    get_bridge_iface,
     get_logger,
     run_command,
+    upsert_bridge_iface,
+    upsert_container_iface,
 )
 
 # Initialize logger
@@ -251,21 +253,9 @@ def create_bridge(bridge_name: str) -> None:
 
 
 def add_iface_to_ovs_bridge(bridge_name: str, iface_info: IfaceInfoDict) -> None:
-    """Add a parent/native interface to an OVS bridge.
-
-    Use this to allow access to public network via your OVS bridge.
-    Parent info should hold details of the network interface that connects
-    to the public network.
-
-    :param bridge_name: Name of the OVS bridge
-    :type bridge_name: str
-    :param iface_info: Host interface details
-    :type iface_info: IfaceInfoDict
-    """
-    # Check if the interface already exists
+    """Add a parent/native interface to an OVS bridge."""
     parent = iface_info.get("iface", "")
-    db_cache = get_db(bridge_name)
-    iface_cache = db_cache.setdefault(parent, {})
+    existing = get_bridge_iface(bridge_name, parent) or {}
 
     check = run_command(f"ovs-vsctl port-to-br {parent}", check=False)
     if check.stdout.strip() != bridge_name:
@@ -274,33 +264,26 @@ def add_iface_to_ovs_bridge(bridge_name: str, iface_info: IfaceInfoDict) -> None
         run_command(f"ovs-vsctl --may-exist add-port {bridge_name} {parent}")
         _LOGGER.debug("parent %s up for OVS bridge %s", parent, bridge_name)
 
+    updates: dict[str, object] = {}
     for key in ["trunk", "native", "vlan"]:
         value = iface_info.get(key, "")
         cleaned_something = remove_ovs_vlan_port(parent, key, str(value))
-        if value and value != iface_cache.get(key, ""):
-            iface_cache[key] = value
+        if value and value != existing.get(key, ""):
+            updates[key] = value
             if cleaned_something:
                 configure_ovs_vlan_port(parent, key, str(value))
                 _LOGGER.info(
                     "New %s %s setting applied for parent %s", key, value, parent
                 )
+    # Always upsert so the row exists even if no VLAN keys are set (validators
+    # check `has_bridge_iface`).
+    upsert_bridge_iface(bridge_name, parent, **updates)
 
 
 def add_iface_to_linux_bridge(bridge_name: str, iface_info: IfaceInfoDict) -> None:
-    """Add a parent/native interface to an Linux bridge.
-
-    Use this to allow access to public network via your Linux bridge.
-    Parent info should hold details of the network interface that connects
-    to the public network.
-
-    :param bridge_name: Name of the OVS bridge
-    :type bridge_name: str
-    :param iface_info: Host interface details
-    :type iface_info: IfaceInfoDict
-    """
+    """Add a parent/native interface to a Linux bridge."""
     parent = iface_info.get("iface", "")
-    db_cache = get_db(bridge_name)
-    iface_cache = db_cache.setdefault(parent, {})
+    existing = get_bridge_iface(bridge_name, parent) or {}
 
     check = run_command(f"ip -o link show master {bridge_name}", check=False)
     if parent not in check.stdout:
@@ -308,12 +291,14 @@ def add_iface_to_linux_bridge(bridge_name: str, iface_info: IfaceInfoDict) -> No
         run_command(f"ip link set dev {parent} nomaster")
         run_command(f"brctl addif {bridge_name} {parent}")
 
+    updates: dict[str, object] = {}
     for key in ["trunk", "native", "vlan"]:
-        if (value := iface_info.get(key, "")) and value != iface_cache.get(key, ""):
+        if (value := iface_info.get(key, "")) and value != existing.get(key, ""):
             _LOGGER.info("New %s %s setting applied for parent %s", key, value, parent)
-            iface_cache[key] = value
+            updates[key] = value
             if remove_linux_bridge_vlan(parent, str(value)):
                 configure_lxbr_vlan_port(bridge_name, parent, key, str(value))
+    upsert_bridge_iface(bridge_name, parent, **updates)
 
 
 def check_interface_exists(
@@ -365,27 +350,10 @@ def check_interface_exists(
 
 
 def configure_container_vlan(container_name: str, info: ContainerInfoDict) -> None:
-    """Configure VLAN or trunk settings for a container's interface on a bridge.
-
-    This function configures the VLAN or trunk settings for a container's interface
-    (`iface`) on a given bridge (`bridge`). The settings are determined from the
-    `info` dictionary, which should include the VLAN or trunk configuration. The
-    function will apply the specified VLAN or trunk mode to the interface using the
-    appropriate tool (`ovs-docker` or `lxbr-docker`), depending on the system's bridge setup.
-
-    :param container_name: The name of the container whose interface is being configured.
-    :type container_name: str
-    :param info: A dictionary containing the container interface details, including:
-                 - `bridge`: The name of the bridge to configure the interface on (str).
-                 - `iface`: The name of the interface to configure (str).
-                 - `vlan`: Optional. The VLAN ID to set (str or int).
-                 - `trunk`: Optional. The trunk configuration to set (str).
-    :type info: ContainerInfoDict
-    """
+    """Configure VLAN / trunk on a container interface that's already attached."""
     util = "ovs-docker" if not USE_LINUX_BRIDGE else "lxbr-docker"
-    bridge = info["bridge"]  # Mandatory
-    iface = info["iface"]  # Mandatory
-    cc_cache = get_db(bridge)[container_name][iface]
+    bridge = info["bridge"]
+    iface = info["iface"]
     for vlan_mode in ("vlan", "trunk"):
         if value := info.get(vlan_mode):
             _LOGGER.debug(
@@ -397,7 +365,7 @@ def configure_container_vlan(container_name: str, info: ContainerInfoDict) -> No
                 check=True,
                 capture_output=True,
             )
-            cc_cache["vlan_mode"] = value
+            upsert_container_iface(bridge, container_name, iface, vlan_mode=value)
             _LOGGER.info(
                 "%s set for %s:%s is %s", vlan_mode, container_name, iface, value
             )

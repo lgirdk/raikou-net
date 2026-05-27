@@ -33,11 +33,19 @@ from app.utils import (
     IfaceInfoDict,
     auto_allocate_ip,
     check_container_exists,
+    clear_bridge_host,
+    clear_bridge_hosts,
+    get_bridge,
+    get_bridge_hosts,
     get_config,
-    get_db,
     get_logger,
+    get_meta,
     get_usb_interface,
     run_command,
+    set_bridge_host,
+    set_meta,
+    upsert_bridge,
+    upsert_container_iface,
 )
 
 _LOGGER = get_logger("orchestrator")
@@ -68,22 +76,52 @@ def _add_iface_to_bridge(bridge_name: str, parent_info: IfaceInfoDict) -> None:
         add_iface_to_ovs_bridge(bridge_name, parent_info)
 
 
+def _apply_bridge_ip(
+    bridge_name: str,
+    family: str,
+    ip_addr: str,
+    new_range: str | None,
+) -> None:
+    """Assign *ip_addr* to *bridge_name* after conflict and range checks.
+
+    Called only when ``init_bridge`` determines the address must change.
+    """
+    ip_family_flag = "-4" if family == "ip" else "-6"
+    hosts = get_bridge_hosts(bridge_name, family)
+    cache_changed = ip_addr != hosts.get(bridge_name)
+
+    if cache_changed:
+        clear_bridge_host(bridge_name, bridge_name, family)
+        run_command(f"ip {ip_family_flag} addr flush dev {bridge_name}", check=False)
+        hosts = get_bridge_hosts(bridge_name, family)
+
+    if not cache_changed and ip_addr in get_interface_ip(bridge_name):
+        return  # already correct on the interface — nothing to do
+
+    if cache_changed and ip_addr in hosts.values():
+        msg = (
+            f"IP {ip_addr} already allocated to someone else. "
+            f"Cannot assign request address to bridge {bridge_name}"
+        )
+        raise ValueError(msg)
+
+    if ipaddress.ip_interface(ip_addr) not in ipaddress.ip_network(str(new_range)):
+        msg = f"{ip_addr} does not fall under the range {new_range}"
+        raise ValueError(msg)
+
+    set_bridge_host(bridge_name, bridge_name, family, ip_addr)
+    run_command(f"ip addr add {ip_addr} dev {bridge_name}")
+    _LOGGER.info("Updated IP address for %s to %s", bridge_name, ip_addr)
+
+
 def init_bridge(bridge_name: str, info: BridgeInfoDict) -> None:
     """Create an OVS/Linux bridge if it does not exist.
 
-    If a parent interface is provided as part of the OVS bridge info,
-    then it shall be a member of the bridge.
-
-    The trunk and native VLAN details are associated to the parent port in OVS.
-
-    :param bridge_name: OVS bridge name
-    :type bridge_name: str
-    :param info: OVS/Linux bridge details
-    :type info: BridgeInfoDict
-    :raises ValueError: If IP address is already allocated/incorrect.
+    Idempotent: re-runs on every reconcile tick. Diff-aware accessors make
+    the no-change case a no-op (no `mark_db_dirty` calls).
     """
     _LOGGER.debug("################## OVS BRIDGES #####################")
-    db_cache = get_db(bridge_name)
+    bridge_row = get_bridge(bridge_name) or {}
 
     # Create the Linux/OVS bridge
     create_bridge(bridge_name)
@@ -93,59 +131,27 @@ def init_bridge(bridge_name: str, info: BridgeInfoDict) -> None:
         ("iprange", info.get("ipaddress")),
         ("ip6range", info.get("ip6address")),
     ):
-        if (ip_range := info.get(range_key)) != db_cache.get(range_key):
-            # Since IP range in cache is getting updated,
-            # remove all previous host reservations.
+        family = "ip" if range_key == "iprange" else "ip6"
+        ip_family_flag = "-4" if family == "ip" else "-6"
+        new_range = info.get(range_key)
 
-            _LOGGER.debug("Updating IP range for %s to %s", bridge_name, ip_range)
-            db_cache[range_key] = ip_range
-            db_cache[f"{range_key}_hosts"] = {}
+        if new_range != bridge_row.get(range_key):
+            _LOGGER.debug("Updating IP range for %s to %s", bridge_name, new_range)
+            upsert_bridge(bridge_name, **{range_key: new_range})
+            clear_bridge_hosts(bridge_name, family)
+            # Refresh local view after writes
+            bridge_row = get_bridge(bridge_name) or {}
 
-        hosts = db_cache.setdefault(f"{range_key}_hosts", {})
-        family = "-4" if range_key == "iprange" else "-6"
+        hosts = get_bridge_hosts(bridge_name, family)
 
         if not ip_addr:
-            # If ip_addr is not requested, simply flush and continue
-            _LOGGER.debug("Flusing IP address for %s", bridge_name)
-
-            hosts.pop(bridge_name, None)
-            run_command(f"ip {family} addr flush dev {bridge_name}", check=False)
+            _LOGGER.debug("Flushing IP address for %s", bridge_name)
+            if bridge_name in hosts:
+                clear_bridge_host(bridge_name, bridge_name, family)
+            run_command(f"ip {ip_family_flag} addr flush dev {bridge_name}", check=False)
             continue
 
-        set_ip, cache_changed = False, False
-
-        if ip_addr != hosts.get(bridge_name):
-            # If ipaddress has changed, update the the cache.
-            # Will check if the new IP is not in conflict with any other host
-            # before assigning to the bridge.
-            hosts.pop(bridge_name, None)
-            run_command(f"ip {family} addr flush dev {bridge_name}", check=False)
-            set_ip, cache_changed = True, True
-
-        elif ip_addr not in get_interface_ip(bridge_name):
-            # If for some reason, ipaddress on the bridge interface
-            # is lost, re-add the ip again.
-            set_ip = True
-
-        if set_ip:
-            if cache_changed and ip_addr in hosts.values():
-                msg_set_ip_err = (
-                    f"IP {ip_addr} already allocated to someone else. ",
-                    f"Cannot assign request address to bridge {bridge_name}",
-                )
-                raise ValueError(msg_set_ip_err)
-
-            if ipaddress.ip_interface(ip_addr) not in ipaddress.ip_network(
-                str(ip_range)
-            ):
-                # Ensure that IP address provided by user is always
-                # part of the same range as that being maintained by the bridge.
-                msg = f"{ip_addr} does not fall under the range {ip_range}"
-                raise ValueError(msg)
-
-            hosts[bridge_name] = ip_addr
-            run_command(f"ip addr add {ip_addr} dev {bridge_name}")
-            _LOGGER.info("Updated IP address for %s to %s", bridge_name, ip_addr)
+        _apply_bridge_ip(bridge_name, family, ip_addr, new_range)
 
     # Add parent interfaces
     for parent_info in info.get("parents", []):
@@ -239,54 +245,46 @@ def add_iface_to_container(  # noqa: C901
     container_name: str,
     info: ContainerInfoDict,
 ) -> None:
-    """Attach a container to a target OVS bridge.
-
-    :param container_name: Target container to push the interface at
-    :type container_name: str
-    :param info: Container interface details
-    :type info: ContainerInfoDict
-    :raises ValueError: If ipaddress syntax is incorrect.
-    """
+    """Attach a container to a target OVS bridge."""
     _LOGGER.debug("###################ADD IFACE TO CONTAINERS######################")
 
     util = "ovs-docker" if not USE_LINUX_BRIDGE else "lxbr-docker"
     bridge = info["bridge"]  # Mandatory
-    iface = info["iface"]  # Mandatory
-    db_cache = get_db(bridge)
-    cc_cache = db_cache.setdefault(container_name, {})
+    iface = info["iface"]    # Mandatory
     cmd = f"{util} add-port {bridge} {iface} {container_name}"
-    cc_cache.setdefault(iface, {})
+
+    # Ensure a container_ifaces row exists (no VLAN fields yet — those land in
+    # configure_container_vlan via ovs_lib).
+    upsert_container_iface(bridge, container_name, iface)
 
     # Check if container exists, skip if it does not exist.
     if (not check_container_exists(container_name)) or check_interface_exists(
         bridge, container_name, iface, util
     ):
-        # If interface already exists, we exit
-        # Note: Need to add checks for IP address too before exiting.
         return
 
     for prefix in ("ip", "ip6"):
         address_key = f"{prefix}address"
         range_key = f"{prefix}range"
-        hosts = db_cache.get(f"{range_key}_hosts", {})
+        hosts = get_bridge_hosts(bridge, prefix)
         if not (ipaddr := info.get(address_key)):
-            # If ipaddress is not provided, but the bridge has an iprange defined
-            # The container will be provided with an IP address from  bridge's
-            # ip range.
-            if db_cache.get(range_key):
+            bridge_row = get_bridge(bridge) or {}
+            if bridge_row.get(range_key):
                 ip = auto_allocate_ip(bridge, container_name, prefix)
                 cmd = f"{cmd} --{address_key}={ip}"
             continue
 
-        if ipaddr == "No-IP":  # If the user explicitly specifies "No-IP"
-            continue  # Then skip
+        if ipaddr == "No-IP":
+            continue
 
         if "/" not in str(ipaddr):
             msg_no_prefix = f"{container_name}: ip {ipaddr} must have a prefix mask"
             raise ValueError(msg_no_prefix)
 
         if ipaddr != hosts.get(container_name):
-            hosts.pop(container_name, None)
+            if container_name in hosts and hosts[container_name] != ipaddr:
+                clear_bridge_host(bridge, container_name, prefix)
+                hosts = get_bridge_hosts(bridge, prefix)
             if ipaddr in hosts.values():
                 msg_ip_exists = (
                     f"IP {ipaddr} already allocated to someone else.",
@@ -294,11 +292,10 @@ def add_iface_to_container(  # noqa: C901
                 )
                 raise ValueError(msg_ip_exists)
 
-        hosts[container_name] = ipaddr
+        set_bridge_host(bridge, container_name, prefix, ipaddr)
         cmd = f"{cmd} --{address_key}={ipaddr}"
 
     for key in ["macaddress", "gateway", "gateway6"]:
-        # Note: add a check here to ensure that
         if value := info.get(key, ""):
             cmd = f"{cmd} --{key}={value}"
 
@@ -321,7 +318,7 @@ async def main() -> None:  # noqa: C901
 
     check_sys_module()
 
-    fail_count = cast(int, get_db("failed", 0))  # noqa: TC006
+    fail_count = cast(int, get_meta("failed", 0))  # noqa: TC006
 
     while True:
         config = get_config()
@@ -357,7 +354,7 @@ async def main() -> None:  # noqa: C901
         except (CalledProcessError, ValueError, IndexError):
             _LOGGER.exception("Exiting core due to exception")
             traceback.print_exc()
-            get_db()["failed"] = fail_count + 1
+            set_meta("failed", fail_count + 1)
             if fail_count > MAX_FAIL_COUNT:
                 _LOGGER.exception("Orchestrator keeps failing! Exiting.")
                 sys.exit(1)

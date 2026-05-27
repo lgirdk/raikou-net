@@ -14,8 +14,8 @@ if ! $USE_LINUX_BRIDGE; then
     /usr/share/openvswitch/scripts/ovs-ctl stop
 fi
 
-# Initializing a JSON file as db for OVS to maintain IP range values
-echo "{}" > /tmp/db.json
+# Wipe any stale db; TinyDB will create the file on first open.
+rm -f /tmp/db.json
 
 # Clean all OVS create VETH pairs before creating new ones
 # Since the OVS module is reloaded the DB is clean.
