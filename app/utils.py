@@ -401,7 +401,7 @@ def run_command(command: str, check: bool = True) -> CompletedProcess[str]:
         return run(command.split(), check=check, capture_output=True, text=True)
     except CalledProcessError as exc:
         _LOGGER.exception("Subprocess error:\nCommand failed: %s", exc.cmd)
-        stderr_output = exc.stderr if exc.stderr else None
+        stderr_output = exc.stderr or None
         _LOGGER.exception("Command stderr output:\n%s", stderr_output)
         raise
 
