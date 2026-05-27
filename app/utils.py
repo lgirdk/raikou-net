@@ -13,10 +13,17 @@ import json
 import logging
 import os
 import sys
+import tempfile
+import time
+from collections.abc import Mapping
 from functools import cache
 from pathlib import Path
 from subprocess import CalledProcessError, CompletedProcess, run
 from typing import Any, TypedDict, TypeVar
+
+from tinydb import Query, TinyDB
+from tinydb.middlewares import CachingMiddleware
+from tinydb.storages import JSONStorage
 
 # Constants
 DB_JSON_PATH = Path("/tmp/db.json")  # noqa: S108
@@ -25,6 +32,254 @@ DOCKER_SOCKET = Path("/var/run/docker.sock")
 USE_LINUX_BRIDGE = os.environ.get("USE_LINUX_BRIDGE", "false") in ("true", "1")
 EVENT_LOCK = asyncio.Lock()
 T = TypeVar("T")
+
+# Runtime-config (Bug 1)
+ROOT_CONFIG_PATH = Path("/root/config.json")
+RUNTIME_CONFIG_PATH = Path("/tmp/runtime-config.json")  # noqa: S108
+
+# Shared flush trigger (Bug 1 + Bug 2)
+QUIET_SECONDS = 60.0
+_state: dict[str, Any] = {
+    "config_dirty": False,
+    "db_dirty": False,
+    "last_mutation_ts": 0.0,
+    "last_external_mtime": 0.0,
+    "last_success_ts": 0.0,
+}
+
+
+def atomic_write_json(path: Path, data: object) -> None:
+    """Atomically write JSON to `path` via tempfile + os.replace.
+
+    Guards against torn writes if the orchestrator crashes mid-write or if an
+    external reader opens the file concurrently.
+
+    :param path: Destination file path.
+    :param data: JSON-serialisable payload.
+    """
+    parent = path.parent
+    fd, tmp_name = tempfile.mkstemp(prefix=path.name + ".", dir=parent, text=True)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fp:
+            json.dump(data, fp)
+            fp.flush()
+            os.fsync(fp.fileno())
+        Path(tmp_name).replace(path)
+    except Exception:
+        Path(tmp_name).unlink(missing_ok=True)
+        raise
+
+
+def deep_merge(dst: dict[str, Any], src: Mapping[str, Any]) -> dict[str, Any]:
+    """In-place deep-merge `src` into `dst`. Returns `dst` for chaining.
+
+    Rules: scalars overwrite, dicts merge recursively, lists overwrite
+    wholesale (no element-level merging). Matches the existing config shape
+    where `container[name]` is a list of interface dicts that external editors
+    replace wholesale.
+
+    :param dst: Destination dict (mutated in place).
+    :param src: Source mapping; values from here win on overlap.
+    :return: `dst`.
+    """
+    for key, value in src.items():
+        if (
+            key in dst
+            and isinstance(dst[key], dict)
+            and isinstance(value, Mapping)
+        ):
+            deep_merge(dst[key], value)
+        else:
+            dst[key] = value
+    return dst
+
+
+def mark_config_dirty() -> None:
+    """Signal that the in-memory config has diverged from `/root/config.json`."""
+    _state["config_dirty"] = True
+    _state["last_mutation_ts"] = time.monotonic()
+
+
+def mark_db_dirty() -> None:
+    """Signal that TinyDB has uncommitted writes."""
+    _state["db_dirty"] = True
+    _state["last_mutation_ts"] = time.monotonic()
+
+
+def mark_tick_success() -> None:
+    """Signal a clean reconcile tick.
+
+    Called by `main()` at the end of each pass. Used by `runner.py`'s
+    supervisor: if a task crash is observed AND a successful tick happened
+    since the previous crash, the supervisor resets `_crash_count` (we
+    tolerate intermittent failures the loop recovers from).
+    """
+    _state["last_success_ts"] = time.monotonic()
+
+
+def is_config_dirty() -> bool:
+    """Whether `/tmp/runtime-config.json` has unpersisted changes vs `/root/config.json`."""
+    return bool(_state["config_dirty"])
+
+
+def is_db_dirty() -> bool:
+    """Whether TinyDB has uncommitted writes."""
+    return bool(_state["db_dirty"])
+
+
+def clear_config_dirty() -> None:
+    """Mark the config flush as complete."""
+    _state["config_dirty"] = False
+
+
+def clear_db_dirty() -> None:
+    """Mark the db commit as complete."""
+    _state["db_dirty"] = False
+
+
+def get_last_success_ts() -> float:
+    """Most recent successful-tick timestamp (0.0 if no tick has succeeded yet)."""
+    return float(_state["last_success_ts"])
+
+
+class AtomicJSONStorage(JSONStorage):
+    """JSONStorage that writes via tempfile + os.replace to avoid torn files.
+
+    TinyDB's default JSONStorage writes the file in place. On a crash mid-write
+    the file can be left empty or partially written; on next open TinyDB sees
+    invalid JSON. AtomicJSONStorage writes a sibling tempfile then `os.replace`s
+    it over the target — atomic at the directory level on POSIX.
+    """
+
+    def write(self, data: dict[str, object]) -> None:  # type: ignore[override]
+        """Write `data` atomically via tempfile + os.replace."""
+        path = Path(self._handle.name)
+        atomic_write_json(path, data)
+
+
+_db: TinyDB | None = None
+
+
+def get_tinydb() -> TinyDB:
+    """Return the process-wide TinyDB singleton (lazy-initialised).
+
+    Uses CachingMiddleware over AtomicJSONStorage so writes accumulate in memory
+    until `commit_db()` flushes them. This is the "explicit commit" boundary —
+    callers mutate freely and the reconcile loop / shutdown decides when to
+    persist.
+    """
+    global _db  # noqa: PLW0603
+    if _db is None:
+        _db = TinyDB(str(DB_JSON_PATH), storage=CachingMiddleware(AtomicJSONStorage))
+    return _db
+
+
+def commit_db() -> None:
+    """Flush the TinyDB CachingMiddleware buffer to disk."""
+    if _db is not None:
+        _db.storage.flush()
+
+
+def close_db() -> None:
+    """Close the TinyDB singleton (flushes on close). Used at shutdown."""
+    global _db  # noqa: PLW0603
+    if _db is not None:
+        _db.close()
+        _db = None
+
+
+def get_meta(key: str, default: object = None) -> object:
+    """Read a scalar from the `meta` table. Returns `default` if missing."""
+    row = get_tinydb().table("meta").get(Query().key == key)
+    return row["value"] if row else default
+
+
+def set_meta(key: str, value: object) -> None:
+    """Upsert a scalar into the `meta` table. Diff-aware — only marks dirty on change."""
+    table = get_tinydb().table("meta")
+    existing = table.get(Query().key == key)
+    if existing is not None and existing.get("value") == value:
+        return  # no-op, no dirty
+    table.upsert({"key": key, "value": value}, Query().key == key)
+    mark_db_dirty()
+
+
+def get_bridge(name: str) -> dict[str, object] | None:
+    """Return the `bridges` row for `name`, or `None`."""
+    return get_tinydb().table("bridges").get(Query().name == name)
+
+
+def upsert_bridge(name: str, **fields: object) -> None:
+    """Upsert per-bridge fields (iprange, ip6range, etc.). Diff-aware.
+
+    Does not touch `hosts_v4` / `hosts_v6` — use `set_bridge_host` /
+    `clear_bridge_host` for those.
+    """
+    table = get_tinydb().table("bridges")
+    existing = table.get(Query().name == name) or {}
+    merged = {"name": name, **{k: v for k, v in existing.items() if k != "name"}, **fields}
+    if merged == existing:
+        return
+    table.upsert(merged, Query().name == name)
+    mark_db_dirty()
+
+
+def get_bridge_hosts(name: str, family: str = "ip") -> dict[str, str]:
+    """Return the `hosts_v4` (or `hosts_v6`) sub-map for the bridge.
+
+    :param family: `"ip"` or `"ip6"`. Empty dict if the bridge or sub-map is absent.
+    """
+    field = "hosts_v4" if family == "ip" else "hosts_v6"
+    row = get_bridge(name)
+    return (row or {}).get(field, {})
+
+
+def set_bridge_host(name: str, container: str, family: str, ipaddr: str) -> None:
+    """Assign / overwrite a host entry. Diff-aware.
+
+    :param name: Bridge name.
+    :param container: Container (or bridge) name being assigned the IP.
+    :param family: `"ip"` or `"ip6"`.
+    :param ipaddr: IP in `addr/mask` form.
+    """
+    field = "hosts_v4" if family == "ip" else "hosts_v6"
+    table = get_tinydb().table("bridges")
+    existing = table.get(Query().name == name) or {"name": name}
+    hosts = dict(existing.get(field, {}))
+    if hosts.get(container) == ipaddr:
+        return
+    hosts[container] = ipaddr
+    new_row = {**existing, field: hosts}
+    table.upsert(new_row, Query().name == name)
+    mark_db_dirty()
+
+
+def clear_bridge_host(name: str, container: str, family: str) -> None:
+    """Remove a host entry. Diff-aware (no-op if absent)."""
+    field = "hosts_v4" if family == "ip" else "hosts_v6"
+    table = get_tinydb().table("bridges")
+    existing = table.get(Query().name == name)
+    if not existing:
+        return
+    hosts = dict(existing.get(field, {}))
+    if container not in hosts:
+        return
+    hosts.pop(container)
+    new_row = {**existing, field: hosts}
+    table.upsert(new_row, Query().name == name)
+    mark_db_dirty()
+
+
+def clear_bridge_hosts(name: str, family: str) -> None:
+    """Wipe the entire hosts sub-map for a family. Used when iprange changes."""
+    field = "hosts_v4" if family == "ip" else "hosts_v6"
+    table = get_tinydb().table("bridges")
+    existing = table.get(Query().name == name)
+    if not existing or not existing.get(field):
+        return
+    new_row = {**existing, field: {}}
+    table.upsert(new_row, Query().name == name)
+    mark_db_dirty()
 
 
 # TypedDict schemas for network configurations
@@ -90,34 +345,6 @@ def get_logger(name: str = __name__) -> logging.Logger:
 
 
 _LOGGER = get_logger("utils")
-
-
-# Cache function to get the OVS database from JSON file
-@cache
-def _open_db() -> dict[str, Any]:
-    return json.load(DB_JSON_PATH.open(encoding="utf-8"))
-
-
-def get_db(key: str = "", default: T | None = None) -> dict[str, Any] | T:
-    """Retrieve the OVS database cache or a specific section of it.
-
-    This function returns the full OVS database cache if no key is provided.
-    If a key is specified, it returns the corresponding section of the cache.
-    If the key does not exist in the database, the provided `default` value is used
-    (an empty dictionary by default).
-
-    :param key: Optional. The key for a specific section of the database.
-    :type key: str
-    :param default: Optional. The default value to set if the key does not exist.
-    :type default: Any
-    :return: The full OVS database cache or the section specified by the key.
-    :rtype: dict[str, Any] | Any
-    """
-    db = _open_db()
-    if key:
-        # Only set to an empty dict if `default` is not provided.
-        return db.setdefault(key, default if default is not None else {})
-    return db
 
 
 @cache
@@ -209,20 +436,16 @@ def get_usb_interface(usb_port: str) -> str:
 def auto_allocate_ip(bridge_name: str, container_name: str, family: str = "ip") -> str:
     """Automatically allocate an IP address from the bridge's IP range.
 
-    :param bridge_name: The brigde name to allocate IP from for the container.
-    :type bridge_name: str
-    :param container_name: Name of the container to assign the IP to.
-    :type container_name: str
-    :param family: The IP family to allocate from ("ip" for IPv4 or "ip6" for IPv6).
-                   Default is "ip".
-    :type family: str
-    :raises IndexError: If no available IP addresses remain in the range.
-    :return: The allocated IP address with the correct prefix.
-    :rtype: str
+    :param bridge_name: Bridge to allocate IP from for the container.
+    :param container_name: Container being assigned the IP.
+    :param family: `"ip"` for IPv4 or `"ip6"` for IPv6.
+    :raises IndexError: If no available IPs remain in the range.
+    :return: Allocated IP with prefix mask.
     """
-    db_cache = get_db(bridge_name)
-    ip_range = db_cache.get(f"{family}range", "/24")
-    hosts = db_cache.get(f"{family}range_hosts", {})
+    bridge_row = get_bridge(bridge_name) or {}
+    range_key = f"{family}range"
+    ip_range = bridge_row.get(range_key, "/24")
+    hosts = get_bridge_hosts(bridge_name, family)
 
     network_hosts = ipaddress.ip_network(str(ip_range)).hosts()
     _ = [next(network_hosts) for _ in range(5)]  # Skip first 5 addresses
@@ -233,7 +456,7 @@ def auto_allocate_ip(bridge_name: str, container_name: str, family: str = "ip") 
             _LOGGER.debug(
                 "Automatic IP allocation (%s) to container: %s", ipaddr, container_name
             )
-            hosts[container_name] = ipaddr
+            set_bridge_host(bridge_name, container_name, family, ipaddr)
             return ipaddr
 
     msg = f"Failed to automatically allocate an IP to container: {container_name}"
@@ -241,89 +464,113 @@ def auto_allocate_ip(bridge_name: str, container_name: str, family: str = "ip") 
 
 
 def validate_bridge(bridge_name: str, info: BridgeInfoDict) -> bool:
-    """Validate if a bridge already exists in the database.
+    """Validate the bridge can be added.
 
-    If any of its parent interfaces are already part of the existing bridge,
-    then the validation fails
-
-    :param bridge_name: The name of the bridge to be validated.
-    :param info: A dictionary containing the bridge's information,
-                 including its parent interfaces.
-    :return: True if the bridge does not exist or
-             no parent interfaces are conflicting,
-             False otherwise.
+    Fails if the bridge already exists AND one of its parent interfaces is
+    already registered as a `bridge_iface` on that bridge.
     """
-    if bridge := get_db(bridge_name):
-        _LOGGER.debug("Bridge Already exists: %s", bridge_name)
-        for parent in info["parents"]:
-            if parent["iface"] in bridge:
-                _LOGGER.error(
-                    "iface %s exists in bridge: %s",
-                    parent["iface"],
-                    bridge_name,
-                )
-                return False
+    if get_bridge(bridge_name) is None:
+        return True
+    _LOGGER.debug("Bridge already exists: %s", bridge_name)
+    for parent in info.get("parents", []):
+        iface = parent.get("iface", "")
+        if iface and has_bridge_iface(bridge_name, iface):
+            _LOGGER.error("iface %s exists in bridge: %s", iface, bridge_name)
+            return False
     return True
 
 
 def validate_container(container_id: str, info: ContainerInfoDict) -> bool:
-    """Validate if the specified container's interface already exists.
+    """Validate the container interface can be added.
 
-    This function checks whether the given container's interface (`iface`)
-    is already present for the specified container in the associated bridge.
-    If the interface exists, it logs an error and returns `False`.
-
-    :param container_id: container name
-    :type container_id: str
-    :param info: container's information, including its bridge and
-                 interface details.
-    :type info: ContainerInfoDict
-    :return: True if container interface does not exists.
+    Fails if the `(bridge, container, iface)` triple already exists.
     """
-    db = get_db(info["bridge"])
-    if (cc_cache := db.get(container_id, {})) and info["iface"] in cc_cache:
+    bridge = info["bridge"]
+    iface = info["iface"]
+    if has_container_iface(bridge, container_id, iface):
         _LOGGER.error(
-            "iface %s already exists for container: %s",
-            info["iface"],
-            container_id,
+            "iface %s already exists for container: %s", iface, container_id
         )
         return False
     return True
 
 
-def validate_veth_pair(veth_pair_id: str, info: dict) -> bool:
-    """Validate the VETH pair ID.
+def validate_veth_pair(veth_pair_id: str, info: dict[str, object]) -> bool:
+    """Validate the VETH pair can be added.
 
-    This function performs two checks:
-
-    1. Ensures that the `veth_pair_id` does not exceed the
-       predefined length limit of 8 characters.
-    2. Checks if the VETH pair's interface name (e.g., `v0_{veth_pair_id}`)
-       already exists on the specified bridge.
-
-    If any validation fails, it logs an error and returns `False`.
-    Otherwise, it returns `True`.
-
-    :param veth_pair_id: The unique identifier for the VETH pair,
-                         which will be used as a prefix.
-    :type veth_pair_id: str
-    :param info: Dictionary containing details about the VETH pair,
-                 including the target bridge (`info["on"]`).
-    :type info: dict
-    :return: Returns `True` if the validation passes, otherwise `False`.
-    :rtype: bool
+    Fails if the prefix is over 8 characters or if the veth0 endpoint
+    (`v0_<prefix>`) is already registered on the target bridge.
     """
     prefix_length_limit = 8
     if len(veth_pair_id) > prefix_length_limit:
         _LOGGER.error("VETH prefix ID: %s is more than 8 chars", veth_pair_id)
         return False
-
-    veth_pair_end = f"v0_{veth_pair_id}"
-    if (bridge := get_db(info["on"])) and veth_pair_end in bridge:
-        _LOGGER.error(
-            "iface %s exists in bridge: %s",
-            veth_pair_id,
-            info["on"],
-        )
+    veth0 = f"v0_{veth_pair_id}"
+    if has_bridge_iface(str(info["on"]), veth0):
+        _LOGGER.error("iface %s exists in bridge: %s", veth_pair_id, info["on"])
         return False
     return True
+
+
+def get_bridge_iface(bridge: str, iface: str) -> dict[str, object] | None:
+    """Return the `bridge_ifaces` row for `(bridge, iface)`, or `None`."""
+    return get_tinydb().table("bridge_ifaces").get(
+        (Query().bridge == bridge) & (Query().iface == iface)
+    )
+
+
+def has_bridge_iface(bridge: str, iface: str) -> bool:
+    """Whether a `bridge_ifaces` row exists for `(bridge, iface)`."""
+    return get_bridge_iface(bridge, iface) is not None
+
+
+def upsert_bridge_iface(bridge: str, iface: str, **fields: object) -> None:
+    """Upsert `(bridge, iface)` VLAN settings (trunk / native / vlan). Diff-aware."""
+    table = get_tinydb().table("bridge_ifaces")
+    existing = table.get((Query().bridge == bridge) & (Query().iface == iface)) or {}
+    merged = {
+        "bridge": bridge,
+        "iface": iface,
+        **{k: v for k, v in existing.items() if k not in ("bridge", "iface")},
+        **fields,
+    }
+    if merged == existing:
+        return
+    table.upsert(merged, (Query().bridge == bridge) & (Query().iface == iface))
+    mark_db_dirty()
+
+
+def get_container_iface(
+    bridge: str, container: str, iface: str
+) -> dict[str, object] | None:
+    """Return the `container_ifaces` row for the triple, or `None`."""
+    q = Query()
+    return get_tinydb().table("container_ifaces").get(
+        (q.bridge == bridge) & (q.container == container) & (q.iface == iface)
+    )
+
+
+def has_container_iface(bridge: str, container: str, iface: str) -> bool:
+    """Whether a `container_ifaces` row exists for the triple."""
+    return get_container_iface(bridge, container, iface) is not None
+
+
+def upsert_container_iface(
+    bridge: str, container: str, iface: str, **fields: object
+) -> None:
+    """Upsert per-iface settings for a container interface. Diff-aware."""
+    q = Query()
+    table = get_tinydb().table("container_ifaces")
+    cond = (q.bridge == bridge) & (q.container == container) & (q.iface == iface)
+    existing = table.get(cond) or {}
+    merged = {
+        "bridge": bridge,
+        "container": container,
+        "iface": iface,
+        **{k: v for k, v in existing.items() if k not in ("bridge", "container", "iface")},
+        **fields,
+    }
+    if merged == existing:
+        return
+    table.upsert(merged, cond)
+    mark_db_dirty()

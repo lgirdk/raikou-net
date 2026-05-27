@@ -24,7 +24,7 @@ RUN apk add -u --no-cache \
     python3 -m venv .venv && \
     . ./.venv/bin/activate && \
     pip install --upgrade --no-cache-dir  pip && \
-    pip install --no-cache-dir fastapi uvicorn[standard] pydantic && \
+    pip install --no-cache-dir fastapi uvicorn[standard] pydantic tinydb && \
     deactivate && \
     # Configure SSH key
     /usr/bin/ssh-keygen -t rsa -b 4096 -N '' -f /etc/ssh/ssh_host_rsa_key && \
