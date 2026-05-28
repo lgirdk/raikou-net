@@ -16,7 +16,6 @@ import sys
 import tempfile
 import time
 from collections.abc import Mapping
-from functools import cache
 from pathlib import Path
 from subprocess import CalledProcessError, CompletedProcess, run
 from typing import Any, TypedDict, TypeVar
@@ -140,6 +139,115 @@ def clear_db_dirty() -> None:
 def get_last_success_ts() -> float:
     """Most recent successful-tick timestamp (0.0 if no tick has succeeded yet)."""
     return float(_state["last_success_ts"])
+
+
+_config_cache: dict[str, object] | None = None
+
+
+def bootstrap_runtime_config() -> dict[str, object]:
+    """Seed `_config_cache` from disk on orchestrator startup.
+
+    If `/tmp/runtime-config.json` exists, load it (preserves API mutations
+    across a supervisord-driven process restart inside the same container).
+    Otherwise copy `/root/config.json` → `/tmp/runtime-config.json` and load.
+    Records `last_external_mtime`.
+    """
+    global _config_cache  # noqa: PLW0603
+    if RUNTIME_CONFIG_PATH.exists():
+        _LOGGER.info("Loading runtime config from %s", RUNTIME_CONFIG_PATH)
+        with RUNTIME_CONFIG_PATH.open(encoding="utf-8") as fp:
+            _config_cache = json.load(fp)
+    else:
+        _LOGGER.info(
+            "Seeding %s from %s", RUNTIME_CONFIG_PATH, ROOT_CONFIG_PATH
+        )
+        with ROOT_CONFIG_PATH.open(encoding="utf-8") as fp:
+            _config_cache = json.load(fp)
+        atomic_write_json(RUNTIME_CONFIG_PATH, _config_cache)
+    _state["last_external_mtime"] = ROOT_CONFIG_PATH.stat().st_mtime
+    return _config_cache
+
+
+def save_runtime_config() -> None:
+    """Atomically write the in-memory config dict to `/tmp/runtime-config.json`.
+
+    Called from API routers after every successful mutation.
+    """
+    if _config_cache is None:
+        return
+    atomic_write_json(RUNTIME_CONFIG_PATH, _config_cache)
+
+
+def ingress_external_config() -> bool:
+    """Pull external edits from `/root/config.json` into the in-memory config.
+
+    Called at the top of every reconcile tick under `EVENT_LOCK`. Mtime-gated:
+    re-reads `/root/config.json` only when its mtime has advanced past the last
+    observed value. External values win on overlapping keys (deep-merge).
+
+    Returns `True` if a merge occurred.
+    """
+    if _config_cache is None:
+        return False
+    try:
+        current_mtime = ROOT_CONFIG_PATH.stat().st_mtime
+    except FileNotFoundError:
+        _LOGGER.warning("%s missing; skipping ingress", ROOT_CONFIG_PATH)
+        return False
+
+    if current_mtime <= _state["last_external_mtime"]:
+        return False
+
+    try:
+        with ROOT_CONFIG_PATH.open(encoding="utf-8") as fp:
+            external = json.load(fp)
+    except json.JSONDecodeError:
+        _LOGGER.exception(
+            "Partial / invalid JSON in %s; will retry next tick", ROOT_CONFIG_PATH
+        )
+        return False
+
+    _LOGGER.info("External config mtime advanced; merging")
+    deep_merge(_config_cache, external)
+    atomic_write_json(RUNTIME_CONFIG_PATH, _config_cache)
+    _state["last_external_mtime"] = current_mtime
+    # We just absorbed external state; clear config_dirty so we don't bounce it
+    # back on the next quiet-window flush.
+    _state["config_dirty"] = False
+    return True
+
+
+def flush_runtime_config_to_root() -> None:
+    """Atomically write the in-memory config dict to `/root/config.json`.
+
+    Refreshes `last_external_mtime` from the resulting file's mtime so the next
+    ingress check doesn't treat our own write as an external edit.
+    """
+    if _config_cache is None:
+        return
+    atomic_write_json(ROOT_CONFIG_PATH, _config_cache)
+    _state["last_external_mtime"] = ROOT_CONFIG_PATH.stat().st_mtime
+    _LOGGER.info("Flushed runtime config to %s", ROOT_CONFIG_PATH)
+
+
+def maybe_flush_state() -> None:
+    """End-of-tick flush. Fires only after a quiet window.
+
+    Called from `main()` at the bottom of each reconcile tick, under
+    `EVENT_LOCK`. If nothing has been mutated, returns immediately. If the
+    quiet window hasn't elapsed since the last mutation, returns immediately.
+    Otherwise flushes whichever flags are set.
+    """
+    if _state["last_mutation_ts"] == 0.0:
+        return
+    if (time.monotonic() - _state["last_mutation_ts"]) < QUIET_SECONDS:
+        return
+    if is_config_dirty():
+        flush_runtime_config_to_root()
+        clear_config_dirty()
+    if is_db_dirty():
+        commit_db()
+        clear_db_dirty()
 
 
 class AtomicJSONStorage(JSONStorage):
@@ -347,15 +455,19 @@ def get_logger(name: str = __name__) -> logging.Logger:
 _LOGGER = get_logger("utils")
 
 
-@cache
-def get_config() -> dict[str, Any]:
-    """Return the OVS config.
+def get_config() -> dict[str, object]:
+    """Return the live in-memory config dict.
 
-    :return: The OVS config.
-    :rtype: dict[str, Any]
+    The dict is seeded by `bootstrap_runtime_config()` on orchestrator startup
+    and mutated in place by API routers + the reconcile loop's ingress merge.
+    Identity is stable across calls so callers can hold references safely.
+
+    :raises RuntimeError: If called before `bootstrap_runtime_config()`.
     """
-    with Path("/root/config.json").open(encoding="UTF-8") as fp:
-        return json.load(fp)
+    if _config_cache is None:
+        msg = "get_config() called before bootstrap_runtime_config()"
+        raise RuntimeError(msg)
+    return _config_cache
 
 
 def hash_string(string: str) -> str:

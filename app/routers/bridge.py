@@ -6,7 +6,14 @@ from fastapi import APIRouter, Body, HTTPException
 
 from app.orchestrator import init_bridge
 from app.schemas import BridgeInfo
-from app.utils import EVENT_LOCK, BridgeInfoDict, get_config, validate_bridge
+from app.utils import (
+    EVENT_LOCK,
+    BridgeInfoDict,
+    get_config,
+    mark_config_dirty,
+    save_runtime_config,
+    validate_bridge,
+)
 
 router = APIRouter()
 
@@ -48,6 +55,9 @@ async def init_bridge_api(
                     bridge_config.setdefault(key, []).extend(value)
                     continue
                 bridge_config[key] = value
+
+            save_runtime_config()
+            mark_config_dirty()
     except ValueError as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
