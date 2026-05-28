@@ -6,7 +6,13 @@ from fastapi import APIRouter, Body, HTTPException
 
 from app.orchestrator import create_veth_pair
 from app.schemas import VethPairInfo
-from app.utils import EVENT_LOCK, get_config, validate_veth_pair
+from app.utils import (
+    EVENT_LOCK,
+    get_config,
+    mark_config_dirty,
+    save_runtime_config,
+    validate_veth_pair,
+)
 
 router = APIRouter()
 
@@ -55,6 +61,9 @@ async def add_veth_pair_api(
             config = get_config()
             cc_config = config["veth_pairs"].setdefault(veth_pair_id, {})
             cc_config.update(veth_pair_info.model_dump())
+
+            save_runtime_config()
+            mark_config_dirty()
     except ValueError as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 

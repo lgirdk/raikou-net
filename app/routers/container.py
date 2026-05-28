@@ -6,7 +6,14 @@ from fastapi import APIRouter, Body, HTTPException
 
 from app.orchestrator import add_iface_to_container
 from app.schemas import ContainerInfo
-from app.utils import EVENT_LOCK, ContainerInfoDict, get_config, validate_container
+from app.utils import (
+    EVENT_LOCK,
+    ContainerInfoDict,
+    get_config,
+    mark_config_dirty,
+    save_runtime_config,
+    validate_container,
+)
 
 router = APIRouter()
 
@@ -42,6 +49,9 @@ async def add_iface_to_container_api(
             config = get_config()
             cc_config = config["container"].setdefault(container_id, [])
             cc_config.append(payload)
+
+            save_runtime_config()
+            mark_config_dirty()
     except ValueError as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
