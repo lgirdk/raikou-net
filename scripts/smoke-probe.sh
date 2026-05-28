@@ -12,14 +12,15 @@
 #
 # Args: none. Env:
 #   COMPOSE_FILE  default docker-compose.ghcr.yaml
-#   COMPOSE_DIR   default /vagrant/examples/double_hop
+#   COMPOSE_DIR   default /vagrant  (examples/double_hop's contents are
+#                                    rsynced here by the Vagrantfile)
 #   POLL_INTERVAL default 5
 #   POLL_TIMEOUT  default 90
 
 set -euo pipefail
 
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.ghcr.yaml}"
-COMPOSE_DIR="${COMPOSE_DIR:-/vagrant/examples/double_hop}"
+COMPOSE_DIR="${COMPOSE_DIR:-/vagrant}"
 POLL_INTERVAL="${POLL_INTERVAL:-5}"
 POLL_TIMEOUT="${POLL_TIMEOUT:-90}"
 
