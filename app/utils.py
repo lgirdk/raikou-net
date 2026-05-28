@@ -53,7 +53,10 @@ def atomic_write_json(path: Path, data: object) -> None:
     external reader opens the file concurrently.
 
     :param path: Destination file path.
+    :type path: Path
     :param data: JSON-serialisable payload.
+    :type data: object
+    :raises Exception: Re-raises any exception from the write/replace operation after cleaning up the temp file.
     """
     parent = path.parent
     fd, tmp_name = tempfile.mkstemp(prefix=path.name + ".", dir=parent, text=True)
@@ -81,11 +84,7 @@ def deep_merge(dst: dict[str, Any], src: Mapping[str, Any]) -> dict[str, Any]:
     :return: `dst`.
     """
     for key, value in src.items():
-        if (
-            key in dst
-            and isinstance(dst[key], dict)
-            and isinstance(value, Mapping)
-        ):
+        if key in dst and isinstance(dst[key], dict) and isinstance(value, Mapping):
             deep_merge(dst[key], value)
         else:
             dst[key] = value
@@ -116,12 +115,20 @@ def mark_tick_success() -> None:
 
 
 def is_config_dirty() -> bool:
-    """Whether `/tmp/runtime-config.json` has unpersisted changes vs `/root/config.json`."""
+    """Whether `/tmp/runtime-config.json` has unpersisted changes vs `/root/config.json`.
+
+    :return: True if the in-memory config has diverged from disk, False otherwise.
+    :rtype: bool
+    """
     return bool(_state["config_dirty"])
 
 
 def is_db_dirty() -> bool:
-    """Whether TinyDB has uncommitted writes."""
+    """Whether TinyDB has uncommitted writes.
+
+    :return: True if TinyDB has uncommitted writes, False otherwise.
+    :rtype: bool
+    """
     return bool(_state["db_dirty"])
 
 
@@ -136,7 +143,11 @@ def clear_db_dirty() -> None:
 
 
 def get_last_success_ts() -> float:
-    """Most recent successful-tick timestamp (0.0 if no tick has succeeded yet)."""
+    """Most recent successful-tick timestamp (0.0 if no tick has succeeded yet).
+
+    :return: Monotonic timestamp of the last successful reconcile tick.
+    :rtype: float
+    """
     return float(_state["last_success_ts"])
 
 
@@ -150,6 +161,9 @@ def bootstrap_runtime_config() -> dict[str, object]:
     across a supervisord-driven process restart inside the same container).
     Otherwise copy `/root/config.json` → `/tmp/runtime-config.json` and load.
     Records `last_external_mtime`.
+
+    :return: The loaded in-memory config dict.
+    :rtype: dict[str, object]
     """
     global _config_cache  # noqa: PLW0603
     if RUNTIME_CONFIG_PATH.exists():
@@ -157,9 +171,7 @@ def bootstrap_runtime_config() -> dict[str, object]:
         with RUNTIME_CONFIG_PATH.open(encoding="utf-8") as fp:
             _config_cache = json.load(fp)
     else:
-        _LOGGER.info(
-            "Seeding %s from %s", RUNTIME_CONFIG_PATH, ROOT_CONFIG_PATH
-        )
+        _LOGGER.info("Seeding %s from %s", RUNTIME_CONFIG_PATH, ROOT_CONFIG_PATH)
         with ROOT_CONFIG_PATH.open(encoding="utf-8") as fp:
             _config_cache = json.load(fp)
         atomic_write_json(RUNTIME_CONFIG_PATH, _config_cache)
@@ -185,6 +197,9 @@ def ingress_external_config() -> bool:
     observed value. External values win on overlapping keys (deep-merge).
 
     Returns `True` if a merge occurred.
+
+    :return: True if an external merge was performed, False otherwise.
+    :rtype: bool
     """
     if _config_cache is None:
         return False
@@ -259,7 +274,11 @@ class AtomicJSONStorage(JSONStorage):
     """
 
     def write(self, data: dict[str, object]) -> None:  # type: ignore[override]
-        """Write `data` atomically via tempfile + os.replace."""
+        """Write `data` atomically via tempfile + os.replace.
+
+        :param data: TinyDB document store to persist.
+        :type data: dict[str, object]
+        """
         path = Path(self._handle.name)
         atomic_write_json(path, data)
 
@@ -274,6 +293,9 @@ def get_tinydb() -> TinyDB:
     until `commit_db()` flushes them. This is the "explicit commit" boundary —
     callers mutate freely and the reconcile loop / shutdown decides when to
     persist.
+
+    :return: The process-wide TinyDB instance.
+    :rtype: TinyDB
     """
     global _db  # noqa: PLW0603
     if _db is None:
@@ -296,13 +318,27 @@ def close_db() -> None:
 
 
 def get_meta(key: str, default: object = None) -> object:
-    """Read a scalar from the `meta` table. Returns `default` if missing."""
+    """Read a scalar from the `meta` table. Returns `default` if missing.
+
+    :param key: The metadata key to look up.
+    :type key: str
+    :param default: Value to return when the key is absent.
+    :type default: object
+    :return: The stored value for `key`, or `default` if not found.
+    :rtype: object
+    """
     row = get_tinydb().table("meta").get(Query().key == key)
     return row["value"] if row else default
 
 
 def set_meta(key: str, value: object) -> None:
-    """Upsert a scalar into the `meta` table. Diff-aware — only marks dirty on change."""
+    """Upsert a scalar into the `meta` table. Diff-aware — only marks dirty on change.
+
+    :param key: The metadata key to set.
+    :type key: str
+    :param value: The value to store for `key`.
+    :type value: object
+    """
     table = get_tinydb().table("meta")
     existing = table.get(Query().key == key)
     if existing is not None and existing.get("value") == value:
@@ -312,7 +348,13 @@ def set_meta(key: str, value: object) -> None:
 
 
 def get_bridge(name: str) -> dict[str, object] | None:
-    """Return the `bridges` row for `name`, or `None`."""
+    """Return the `bridges` row for `name`, or `None`.
+
+    :param name: The bridge name to look up.
+    :type name: str
+    :return: The TinyDB row dict for the bridge, or None if not found.
+    :rtype: dict[str, object] | None
+    """
     return get_tinydb().table("bridges").get(Query().name == name)
 
 
@@ -321,10 +363,19 @@ def upsert_bridge(name: str, **fields: object) -> None:
 
     Does not touch `hosts_v4` / `hosts_v6` — use `set_bridge_host` /
     `clear_bridge_host` for those.
+
+    :param name: The bridge name to upsert.
+    :type name: str
+    :param fields: Keyword arguments for bridge fields to set (e.g. iprange, ip6range).
+    :type fields: dict[str, object]
     """
     table = get_tinydb().table("bridges")
     existing = table.get(Query().name == name) or {}
-    merged = {"name": name, **{k: v for k, v in existing.items() if k != "name"}, **fields}
+    merged = {
+        "name": name,
+        **{k: v for k, v in existing.items() if k != "name"},
+        **fields,
+    }
     if merged == existing:
         return
     table.upsert(merged, Query().name == name)
@@ -334,7 +385,12 @@ def upsert_bridge(name: str, **fields: object) -> None:
 def get_bridge_hosts(name: str, family: str = "ip") -> dict[str, str]:
     """Return the `hosts_v4` (or `hosts_v6`) sub-map for the bridge.
 
+    :param name: The bridge name to look up.
+    :type name: str
     :param family: `"ip"` or `"ip6"`. Empty dict if the bridge or sub-map is absent.
+    :type family: str
+    :return: Mapping of container name to allocated IP address for the given family.
+    :rtype: dict[str, str]
     """
     field = "hosts_v4" if family == "ip" else "hosts_v6"
     row = get_bridge(name)
@@ -362,7 +418,15 @@ def set_bridge_host(name: str, container: str, family: str, ipaddr: str) -> None
 
 
 def clear_bridge_host(name: str, container: str, family: str) -> None:
-    """Remove a host entry. Diff-aware (no-op if absent)."""
+    """Remove a host entry. Diff-aware (no-op if absent).
+
+    :param name: The bridge name.
+    :type name: str
+    :param container: The container name whose host entry should be removed.
+    :type container: str
+    :param family: `"ip"` or `"ip6"`.
+    :type family: str
+    """
     field = "hosts_v4" if family == "ip" else "hosts_v6"
     table = get_tinydb().table("bridges")
     existing = table.get(Query().name == name)
@@ -378,7 +442,13 @@ def clear_bridge_host(name: str, container: str, family: str) -> None:
 
 
 def clear_bridge_hosts(name: str, family: str) -> None:
-    """Wipe the entire hosts sub-map for a family. Used when iprange changes."""
+    """Wipe the entire hosts sub-map for a family. Used when iprange changes.
+
+    :param name: The bridge name.
+    :type name: str
+    :param family: `"ip"` or `"ip6"`.
+    :type family: str
+    """
     field = "hosts_v4" if family == "ip" else "hosts_v6"
     table = get_tinydb().table("bridges")
     existing = table.get(Query().name == name)
@@ -461,6 +531,8 @@ def get_config() -> dict[str, object]:
     and mutated in place by API routers + the reconcile loop's ingress merge.
     Identity is stable across calls so callers can hold references safely.
 
+    :return: The live in-memory config dict.
+    :rtype: dict[str, object]
     :raises RuntimeError: If called before `bootstrap_runtime_config()`.
     """
     if _config_cache is None:
@@ -579,6 +651,13 @@ def validate_bridge(bridge_name: str, info: BridgeInfoDict) -> bool:
 
     Fails if the bridge already exists AND one of its parent interfaces is
     already registered as a `bridge_iface` on that bridge.
+
+    :param bridge_name: The bridge name to validate.
+    :type bridge_name: str
+    :param info: The bridge configuration dict to validate against.
+    :type info: BridgeInfoDict
+    :return: True if the bridge can be safely added, False otherwise.
+    :rtype: bool
     """
     if get_bridge(bridge_name) is None:
         return True
@@ -595,13 +674,18 @@ def validate_container(container_id: str, info: ContainerInfoDict) -> bool:
     """Validate the container interface can be added.
 
     Fails if the `(bridge, container, iface)` triple already exists.
+
+    :param container_id: The container name to validate.
+    :type container_id: str
+    :param info: The container interface configuration dict.
+    :type info: ContainerInfoDict
+    :return: True if the interface can be added to the container, False otherwise.
+    :rtype: bool
     """
     bridge = info["bridge"]
     iface = info["iface"]
     if has_container_iface(bridge, container_id, iface):
-        _LOGGER.error(
-            "iface %s already exists for container: %s", iface, container_id
-        )
+        _LOGGER.error("iface %s already exists for container: %s", iface, container_id)
         return False
     return True
 
@@ -611,6 +695,13 @@ def validate_veth_pair(veth_pair_id: str, info: dict[str, object]) -> bool:
 
     Fails if the prefix is over 8 characters or if the veth0 endpoint
     (`v0_<prefix>`) is already registered on the target bridge.
+
+    :param veth_pair_id: The veth pair prefix identifier to validate.
+    :type veth_pair_id: str
+    :param info: The veth pair configuration dict (must contain `"on"` key for bridge).
+    :type info: dict[str, object]
+    :return: True if the veth pair can be created, False otherwise.
+    :rtype: bool
     """
     prefix_length_limit = 8
     if len(veth_pair_id) > prefix_length_limit:
@@ -624,19 +715,45 @@ def validate_veth_pair(veth_pair_id: str, info: dict[str, object]) -> bool:
 
 
 def get_bridge_iface(bridge: str, iface: str) -> dict[str, object] | None:
-    """Return the `bridge_ifaces` row for `(bridge, iface)`, or `None`."""
-    return get_tinydb().table("bridge_ifaces").get(
-        (Query().bridge == bridge) & (Query().iface == iface)
+    """Return the `bridge_ifaces` row for `(bridge, iface)`, or `None`.
+
+    :param bridge: The bridge name.
+    :type bridge: str
+    :param iface: The interface name.
+    :type iface: str
+    :return: The TinyDB row dict for the bridge-iface pair, or None if not found.
+    :rtype: dict[str, object] | None
+    """
+    return (
+        get_tinydb()
+        .table("bridge_ifaces")
+        .get((Query().bridge == bridge) & (Query().iface == iface))
     )
 
 
 def has_bridge_iface(bridge: str, iface: str) -> bool:
-    """Whether a `bridge_ifaces` row exists for `(bridge, iface)`."""
+    """Whether a `bridge_ifaces` row exists for `(bridge, iface)`.
+
+    :param bridge: The bridge name.
+    :type bridge: str
+    :param iface: The interface name.
+    :type iface: str
+    :return: True if the bridge-iface row exists, False otherwise.
+    :rtype: bool
+    """
     return get_bridge_iface(bridge, iface) is not None
 
 
 def upsert_bridge_iface(bridge: str, iface: str, **fields: object) -> None:
-    """Upsert `(bridge, iface)` VLAN settings (trunk / native / vlan). Diff-aware."""
+    """Upsert `(bridge, iface)` VLAN settings (trunk / native / vlan). Diff-aware.
+
+    :param bridge: The bridge name.
+    :type bridge: str
+    :param iface: The interface name.
+    :type iface: str
+    :param fields: Keyword arguments for VLAN fields to set (e.g. trunk, native, vlan).
+    :type fields: dict[str, object]
+    """
     table = get_tinydb().table("bridge_ifaces")
     existing = table.get((Query().bridge == bridge) & (Query().iface == iface)) or {}
     merged = {
@@ -654,22 +771,54 @@ def upsert_bridge_iface(bridge: str, iface: str, **fields: object) -> None:
 def get_container_iface(
     bridge: str, container: str, iface: str
 ) -> dict[str, object] | None:
-    """Return the `container_ifaces` row for the triple, or `None`."""
+    """Return the `container_ifaces` row for the triple, or `None`.
+
+    :param bridge: The bridge name.
+    :type bridge: str
+    :param container: The container name.
+    :type container: str
+    :param iface: The interface name.
+    :type iface: str
+    :return: The TinyDB row dict for the (bridge, container, iface) triple, or None.
+    :rtype: dict[str, object] | None
+    """
     q = Query()
-    return get_tinydb().table("container_ifaces").get(
-        (q.bridge == bridge) & (q.container == container) & (q.iface == iface)
+    return (
+        get_tinydb()
+        .table("container_ifaces")
+        .get((q.bridge == bridge) & (q.container == container) & (q.iface == iface))
     )
 
 
 def has_container_iface(bridge: str, container: str, iface: str) -> bool:
-    """Whether a `container_ifaces` row exists for the triple."""
+    """Whether a `container_ifaces` row exists for the triple.
+
+    :param bridge: The bridge name.
+    :type bridge: str
+    :param container: The container name.
+    :type container: str
+    :param iface: The interface name.
+    :type iface: str
+    :return: True if the (bridge, container, iface) row exists, False otherwise.
+    :rtype: bool
+    """
     return get_container_iface(bridge, container, iface) is not None
 
 
 def upsert_container_iface(
     bridge: str, container: str, iface: str, **fields: object
 ) -> None:
-    """Upsert per-iface settings for a container interface. Diff-aware."""
+    """Upsert per-iface settings for a container interface. Diff-aware.
+
+    :param bridge: The bridge name.
+    :type bridge: str
+    :param container: The container name.
+    :type container: str
+    :param iface: The interface name.
+    :type iface: str
+    :param fields: Keyword arguments for interface fields to set (e.g. vlan_mode).
+    :type fields: dict[str, object]
+    """
     q = Query()
     table = get_tinydb().table("container_ifaces")
     cond = (q.bridge == bridge) & (q.container == container) & (q.iface == iface)
@@ -678,7 +827,11 @@ def upsert_container_iface(
         "bridge": bridge,
         "container": container,
         "iface": iface,
-        **{k: v for k, v in existing.items() if k not in ("bridge", "container", "iface")},
+        **{
+            k: v
+            for k, v in existing.items()
+            if k not in ("bridge", "container", "iface")
+        },
         **fields,
     }
     if merged == existing:

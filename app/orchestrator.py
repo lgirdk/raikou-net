@@ -85,6 +85,16 @@ def _apply_bridge_ip(
     """Assign *ip_addr* to *bridge_name* after conflict and range checks.
 
     Called only when ``init_bridge`` determines the address must change.
+
+    :param bridge_name: The name of the bridge to assign the IP to.
+    :type bridge_name: str
+    :param family: Address family — `"ip"` for IPv4 or `"ip6"` for IPv6.
+    :type family: str
+    :param ip_addr: The IP address (with prefix) to assign to the bridge.
+    :type ip_addr: str
+    :param new_range: The IP range the address must fall within, or None.
+    :type new_range: str | None
+    :raises ValueError: If the IP is already allocated to another host or falls outside the range.
     """
     ip_family_flag = "-4" if family == "ip" else "-6"
     hosts = get_bridge_hosts(bridge_name, family)
@@ -119,6 +129,11 @@ def init_bridge(bridge_name: str, info: BridgeInfoDict) -> None:
 
     Idempotent: re-runs on every reconcile tick. Diff-aware accessors make
     the no-change case a no-op (no `mark_db_dirty` calls).
+
+    :param bridge_name: The name of the bridge to create or reconcile.
+    :type bridge_name: str
+    :param info: The bridge configuration dict (parents, iprange, ip6range, etc.).
+    :type info: BridgeInfoDict
     """
     _LOGGER.debug("################## OVS BRIDGES #####################")
     bridge_row = get_bridge(bridge_name) or {}
@@ -148,7 +163,9 @@ def init_bridge(bridge_name: str, info: BridgeInfoDict) -> None:
             _LOGGER.debug("Flushing IP address for %s", bridge_name)
             if bridge_name in hosts:
                 clear_bridge_host(bridge_name, bridge_name, family)
-            run_command(f"ip {ip_family_flag} addr flush dev {bridge_name}", check=False)
+            run_command(
+                f"ip {ip_family_flag} addr flush dev {bridge_name}", check=False
+            )
             continue
 
         _apply_bridge_ip(bridge_name, family, ip_addr, new_range)
@@ -245,12 +262,19 @@ def add_iface_to_container(  # noqa: C901
     container_name: str,
     info: ContainerInfoDict,
 ) -> None:
-    """Attach a container to a target OVS bridge."""
+    """Attach a container to a target OVS bridge.
+
+    :param container_name: The name of the container to attach the interface to.
+    :type container_name: str
+    :param info: The container interface configuration dict (bridge, iface, ip, etc.).
+    :type info: ContainerInfoDict
+    :raises ValueError: If the IP address lacks a prefix mask or is already allocated to another container.
+    """
     _LOGGER.debug("###################ADD IFACE TO CONTAINERS######################")
 
     util = "ovs-docker" if not USE_LINUX_BRIDGE else "lxbr-docker"
     bridge = info["bridge"]  # Mandatory
-    iface = info["iface"]    # Mandatory
+    iface = info["iface"]  # Mandatory
     cmd = f"{util} add-port {bridge} {iface} {container_name}"
 
     # Ensure a container_ifaces row exists (no VLAN fields yet — those land in
@@ -310,7 +334,11 @@ def add_iface_to_container(  # noqa: C901
 
 
 async def main() -> None:
-    """Reconcile loop. Owns no supervision state — runner handles crash policy."""
+    """Reconcile loop. Owns no supervision state — runner handles crash policy.
+
+    :raises RuntimeError: If the Docker socket is not mounted at startup.
+    :raises asyncio.CancelledError: When the task is cancelled during shutdown.
+    """
     if not DOCKER_SOCKET.exists():
         _LOGGER.error("Need to mount Docker socket!!")
         msg = "Docker socket missing"

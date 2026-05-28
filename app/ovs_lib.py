@@ -253,7 +253,13 @@ def create_bridge(bridge_name: str) -> None:
 
 
 def add_iface_to_ovs_bridge(bridge_name: str, iface_info: IfaceInfoDict) -> None:
-    """Add a parent/native interface to an OVS bridge."""
+    """Add a parent/native interface to an OVS bridge.
+
+    :param bridge_name: The name of the OVS bridge to add the interface to.
+    :type bridge_name: str
+    :param iface_info: The interface configuration dict (iface, trunk, native, vlan).
+    :type iface_info: IfaceInfoDict
+    """
     parent = iface_info.get("iface", "")
     existing = get_bridge_iface(bridge_name, parent) or {}
 
@@ -281,7 +287,13 @@ def add_iface_to_ovs_bridge(bridge_name: str, iface_info: IfaceInfoDict) -> None
 
 
 def add_iface_to_linux_bridge(bridge_name: str, iface_info: IfaceInfoDict) -> None:
-    """Add a parent/native interface to a Linux bridge."""
+    """Add a parent/native interface to a Linux bridge.
+
+    :param bridge_name: The name of the Linux bridge to add the interface to.
+    :type bridge_name: str
+    :param iface_info: The interface configuration dict (iface, trunk, native, vlan).
+    :type iface_info: IfaceInfoDict
+    """
     parent = iface_info.get("iface", "")
     existing = get_bridge_iface(bridge_name, parent) or {}
 
@@ -350,7 +362,13 @@ def check_interface_exists(
 
 
 def configure_container_vlan(container_name: str, info: ContainerInfoDict) -> None:
-    """Configure VLAN / trunk on a container interface that's already attached."""
+    """Configure VLAN / trunk on a container interface that's already attached.
+
+    :param container_name: The name of the container whose interface VLAN should be configured.
+    :type container_name: str
+    :param info: The container interface configuration dict (bridge, iface, vlan, trunk).
+    :type info: ContainerInfoDict
+    """
     util = "ovs-docker" if not USE_LINUX_BRIDGE else "lxbr-docker"
     bridge = info["bridge"]
     iface = info["iface"]
