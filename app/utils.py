@@ -26,7 +26,6 @@ from tinydb.storages import JSONStorage
 
 # Constants
 DB_JSON_PATH = Path("/tmp/db.json")  # noqa: S108
-MAX_FAIL_COUNT = 2
 DOCKER_SOCKET = Path("/var/run/docker.sock")
 USE_LINUX_BRIDGE = os.environ.get("USE_LINUX_BRIDGE", "false") in ("true", "1")
 EVENT_LOCK = asyncio.Lock()

@@ -8,10 +8,9 @@ from __future__ import annotations
 
 import asyncio
 import ipaddress
-import sys
 import traceback
 from subprocess import CalledProcessError
-from typing import Literal, cast
+from typing import Literal
 
 from app.ovs_lib import (
     add_iface_to_linux_bridge,
@@ -26,12 +25,12 @@ from app.ovs_lib import (
 from app.utils import (
     DOCKER_SOCKET,
     EVENT_LOCK,
-    MAX_FAIL_COUNT,
     USE_LINUX_BRIDGE,
     BridgeInfoDict,
     ContainerInfoDict,
     IfaceInfoDict,
     auto_allocate_ip,
+    bootstrap_runtime_config,
     check_container_exists,
     clear_bridge_host,
     clear_bridge_hosts,
@@ -39,11 +38,12 @@ from app.utils import (
     get_bridge_hosts,
     get_config,
     get_logger,
-    get_meta,
     get_usb_interface,
+    ingress_external_config,
+    mark_tick_success,
+    maybe_flush_state,
     run_command,
     set_bridge_host,
-    set_meta,
     upsert_bridge,
     upsert_container_iface,
 )
@@ -309,34 +309,29 @@ def add_iface_to_container(  # noqa: C901
     configure_container_vlan(container_name, info)
 
 
-async def main() -> None:  # noqa: C901
-    """Runner function that runs in a loop."""
-    # Initial Check if docker socket is loaded.
+async def main() -> None:
+    """Reconcile loop. Owns no supervision state — runner handles crash policy."""
     if not DOCKER_SOCKET.exists():
         _LOGGER.error("Need to mount Docker socket!!")
-        sys.exit(1)
+        msg = "Docker socket missing"
+        raise RuntimeError(msg)
 
     check_sys_module()
-
-    fail_count = cast(int, get_meta("failed", 0))  # noqa: TC006
+    bootstrap_runtime_config()
 
     while True:
-        config = get_config()
-
-        if fail_count > MAX_FAIL_COUNT:
-            sys.exit(1)
         try:
             async with EVENT_LOCK:
-                # Initialize all parent bridges
+                ingress_external_config()
+                config = get_config()
+
                 for bridge, info in config["bridge"].items():
                     init_bridge(bridge, info)
 
-                # Attach containers to parent bridges based on config.json
                 for container, iface_info in config["container"].items():
                     for info in iface_info:
                         add_iface_to_container(container, info)
 
-                # Handle Veth pairs and VLAN translations
                 for prefix, translation in config.get("veth_pairs", {}).items():
                     create_veth_pair(
                         on_bridge=translation["on"],
@@ -345,16 +340,16 @@ async def main() -> None:  # noqa: C901
                         trunk=translation.get("trunk", "no"),
                     )
 
-            # Introduce a sleep to wait before the next loop cycle
-            await asyncio.sleep(15)  # This allows cancellation to be checked
+                maybe_flush_state()
+
+            mark_tick_success()
+            await asyncio.sleep(15)
 
         except asyncio.CancelledError:
-            _LOGGER.info("Main loop has been cancelled. Shutting down gracefully.")
+            _LOGGER.info("Main loop cancelled; propagating")
+            raise
 
-        except (CalledProcessError, ValueError, IndexError):
-            _LOGGER.exception("Exiting core due to exception")
+        except (CalledProcessError, ValueError, IndexError, KeyError):
+            _LOGGER.exception("Recoverable error in reconcile tick")
             traceback.print_exc()
-            set_meta("failed", fail_count + 1)
-            if fail_count > MAX_FAIL_COUNT:
-                _LOGGER.exception("Orchestrator keeps failing! Exiting.")
-                sys.exit(1)
+            await asyncio.sleep(15)
