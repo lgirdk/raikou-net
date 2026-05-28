@@ -60,12 +60,12 @@
         ]
     },
     "veth_pairs": {
-        "mgmt": {
-            "map": "131:100",
-            "on": "cpe-to-bng"
-        },
         "data": {
             "map": "121:200",
+            "on": "cpe-to-bng"
+        },
+        "mgmt": {
+            "map": "131:100",
             "on": "cpe-to-bng"
         },
         "voice": {
