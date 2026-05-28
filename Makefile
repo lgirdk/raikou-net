@@ -151,12 +151,12 @@ demo-down: ## Halt the demo VM (the systemd unit's ExecStop tears down the stack
 	-cd $(SMOKE_DIR) && vagrant halt 2>/dev/null || true
 
 smoke-down: ## Tear down the stack and halt the VM (safe anytime)
-	-cd $(SMOKE_DIR) && vagrant ssh -c "cd /vagrant/$(SMOKE_DIR) && docker compose -f $(COMPOSE_FILE) down -v" 2>/dev/null || true
+	-cd $(SMOKE_DIR) && vagrant ssh -c "cd /vagrant && docker compose -f $(COMPOSE_FILE) down -v" 2>/dev/null || true
 	-cd $(SMOKE_DIR) && vagrant halt 2>/dev/null || true
 
 smoke-logs: ## Dump orchestrator.log + per-service compose logs from the VM
 	@cd $(SMOKE_DIR) && vagrant ssh -c '\
-	  cd /vagrant/$(SMOKE_DIR); \
+	  cd /vagrant; \
 	  echo "===== docker ps -a ====="; \
 	  docker ps -a; \
 	  echo; echo "===== /var/log/orchestrator.log ====="; \
@@ -178,11 +178,11 @@ _smoke_ship:
 
 _smoke_compose_up:
 	@cd $(SMOKE_DIR) && vagrant ssh -c '\
-	  cd /vagrant/$(SMOKE_DIR) && \
+	  cd /vagrant && \
 	  docker compose -f $(COMPOSE_FILE) --env-file .env up -d --pull=missing'
 
 _smoke_probe:
-	@cd $(SMOKE_DIR) && vagrant ssh -c 'bash /vagrant/scripts/smoke-probe.sh'
+	@cat scripts/smoke-probe.sh | (cd $(SMOKE_DIR) && vagrant ssh -- 'bash -s')
 
 # ----- Composite -----
 all: lint build smoke ## Full local CI: lint + build + smoke
