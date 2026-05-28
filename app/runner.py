@@ -70,7 +70,12 @@ def _spawn_reconcile_task() -> None:
 
 @asynccontextmanager
 async def app_lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
-    """Lifespan context: spawn reconcile task on startup, drain on shutdown."""
+    """Lifespan context: spawn reconcile task on startup, drain on shutdown.
+
+    :param _app: The FastAPI application instance (unused, required by interface).
+    :type _app: FastAPI
+    :yield: Control to the running application between startup and shutdown.
+    """
     global _shutting_down  # noqa: PLW0603
     _LOGGER.info("Lifespan started")
     _spawn_reconcile_task()
@@ -106,5 +111,9 @@ app.include_router(veth.router)
 
 @app.get("/")
 async def root() -> dict[str, str]:
-    """Show the app name."""
+    """Show the app name.
+
+    :return: A dict containing the API name message.
+    :rtype: dict[str, str]
+    """
     return {"message": "OVS Network Orchestrator API"}
