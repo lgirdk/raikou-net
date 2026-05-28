@@ -33,7 +33,7 @@ async def init_bridge_api(
     :return: Status Message
     :rtype: dict
     """
-    payload = cast(BridgeInfoDict, bridge_info.model_dump())
+    payload = cast("BridgeInfoDict", bridge_info.model_dump())
     # Pre-validation check
 
     if not validate_bridge(bridge_name, payload):

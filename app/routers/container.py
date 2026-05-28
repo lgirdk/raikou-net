@@ -35,7 +35,7 @@ async def add_iface_to_container_api(
     :return: Success message.
     :rtype: dict
     """
-    payload = cast(ContainerInfoDict, container_info.model_dump())
+    payload = cast("ContainerInfoDict", container_info.model_dump())
     # Pre-validation check
     if not validate_container(container_id, payload):
         raise HTTPException(status_code=400, detail="Validation failed")
