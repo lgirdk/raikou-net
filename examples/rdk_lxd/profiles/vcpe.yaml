@@ -1,0 +1,42 @@
+name: vcpe
+description: vcpe
+config:
+  boot.autostart: "false"
+  environment.HOME: /home/root
+  environment.TZ: PST8PDT,M3.2.0,M11.1.0
+  limits.cpu: 2
+  limits.memory: 512MiB
+  limits.memory.swap: "false"
+  security.nesting: "true"
+  security.privileged: "true"
+devices:
+  nvram:
+    path: /nvram
+    pool: default
+    source: vcpe-nvram
+    type: disk
+  root:
+    path: /
+    pool: default
+    size: 512MiB
+    type: disk
+  wlan0:
+    name: wlan0
+    nictype: physical
+    parent: virt-wlan1
+    type: nic
+  wlan1:
+    name: wlan1
+    nictype: physical
+    parent: virt-wlan2
+    type: nic
+  wlan2:
+    name: wlan2
+    nictype: physical
+    parent: virt-wlan3
+    type: nic
+  wlan3:
+    name: wlan3
+    nictype: physical
+    parent: virt-wlan4
+    type: nic
