@@ -1,0 +1,181 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+#
+# Brings up an Ubuntu VM, installs Docker + LXD + oras, pulls the RDK rootfs from
+# GHCR, and starts the rdk_lxd bench: the double_hop docker stack (orchestrator on
+# Linux bridges) plus a single RDK-generic CPE running as an LXD container wired
+# into the cpe-rtr / lan-cpe bridges.
+#
+# Toggle the CPE's virtual WiFi radios with ENABLE_WIFI (default from .env):
+#   ENABLE_WIFI=1 vagrant up
+#   ENABLE_WIFI=1 vagrant provision      # on an already-running VM
+
+require "dotenv" rescue nil
+
+def env_from_dotenv(key, default)
+  path = File.join(__dir__, ".env")
+  if File.exist?(path)
+    File.readlines(path).each do |line|
+      m = line.match(/^\s*#{Regexp.escape(key)}\s*=\s*(.+?)\s*$/)
+      return m[1] if m
+    end
+  end
+  default
+end
+
+COMPOSE_FILE  = "docker-compose.yaml"
+VERSION       = ENV.fetch("VERSION",        env_from_dotenv("VERSION", "v3"))
+RDK_ROOTFS_REF = ENV.fetch("RDK_ROOTFS_REF", env_from_dotenv("RDK_ROOTFS_REF",
+                  "ghcr.io/ketantewari/raikou/rdk-rootfs:qemux86broadband"))
+ENABLE_WIFI   = ENV.fetch("ENABLE_WIFI",    env_from_dotenv("ENABLE_WIFI", "0"))
+
+compose_path = File.join(__dir__, COMPOSE_FILE)
+abort "#{COMPOSE_FILE} not found in #{__dir__}" unless File.exist?(compose_path)
+
+# Scrape host:container port mappings from the compose file so published services
+# are reachable at localhost:<port> on the workstation (same trick as double_hop).
+PORTS = File.readlines(compose_path).filter_map { |line|
+  line.match(/^\s*-\s+"?(\d+):(\d+)"?\s*$/) { |m| [m[1].to_i, m[2].to_i] }
+}.uniq
+
+Vagrant.configure("2") do |config|
+  config.vm.box      = "generic/ubuntu2204"
+  config.vm.hostname = "raikou-rdk-lxd"
+
+  config.vm.synced_folder ".", "/vagrant",
+    type: "rsync",
+    rsync__exclude: [".git/", ".vagrant/"]
+
+  PORTS.each do |host_port, guest_port|
+    config.vm.network "forwarded_port",
+      guest: guest_port, host: host_port, host_ip: "0.0.0.0"
+  end
+
+  config.vm.provider "virtualbox" do |vb|
+    vb.memory = 6144
+    vb.cpus   = 4
+  end
+
+  config.vm.provider "libvirt" do |lv|
+    lv.memory = 6144
+    lv.cpus   = 4
+  end
+
+  config.vm.provision "shell",
+    env: {
+      "VERSION"        => VERSION,
+      "RDK_ROOTFS_REF" => RDK_ROOTFS_REF,
+      "ENABLE_WIFI"    => ENABLE_WIFI,
+      "COMPOSE_FILE"   => COMPOSE_FILE,
+    },
+    inline: <<-SHELL
+    set -eux
+    export DEBIAN_FRONTEND=noninteractive
+    : "${RDK_ROOTFS_REF:?must be set}"
+
+    apt-get update
+    apt-get install -y ca-certificates curl gnupg lsb-release bridge-utils snapd
+
+    # Docker Engine + Compose plugin (official repo).
+    if ! command -v docker >/dev/null 2>&1; then
+      install -m 0755 -d /etc/apt/keyrings
+      curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+        | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+      chmod a+r /etc/apt/keyrings/docker.gpg
+      . /etc/os-release
+      echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $VERSION_CODENAME stable" \
+        > /etc/apt/sources.list.d/docker.list
+      apt-get update
+      apt-get install -y docker-ce docker-ce-cli containerd.io \
+        docker-buildx-plugin docker-compose-plugin
+    fi
+    usermod -aG docker vagrant
+
+    # LXD via snap, initialised via preseed with a dir pool and NO managed bridge
+    # (plain `lxd init --auto` would create the lxdbr0 managed bridge, which we
+    # must avoid — the orchestrator owns the bridges).
+    if ! command -v lxc >/dev/null 2>&1; then
+      snap install lxd
+      lxd waitready --timeout=120 || { echo "LXD daemon not ready after 120s" >&2; exit 1; }
+      lxd init --preseed <<'PRESEED'
+config: {}
+networks: []
+storage_pools:
+- name: default
+  driver: dir
+profiles:
+- name: default
+  devices:
+    root:
+      path: /
+      pool: default
+      type: disk
+PRESEED
+    fi
+    usermod -aG lxd vagrant
+
+    # oras CLI for pulling the RDK rootfs from GHCR.
+    if ! command -v oras >/dev/null 2>&1; then
+      ORAS_VERSION=1.2.0
+      case "$(uname -m)" in
+        x86_64)  ORAS_ARCH=amd64 ;;
+        aarch64) ORAS_ARCH=arm64 ;;
+        *)       ORAS_ARCH=amd64 ;;
+      esac
+      curl -fsSL "https://github.com/oras-project/oras/releases/download/v${ORAS_VERSION}/oras_${ORAS_VERSION}_linux_${ORAS_ARCH}.tar.gz" \
+        -o /tmp/oras.tar.gz
+      tar -C /usr/local/bin -xzf /tmp/oras.tar.gz oras
+    fi
+
+    # Pull the RDK rootfs OCI artifact into the synced images/ dir.
+    # NOTE: /vagrant is rsync (host->guest only); the pulled artifact is guest-local
+    # and must be re-pulled on each `vagrant destroy && vagrant up`.
+    mkdir -p /vagrant/images
+    ( cd /vagrant/images && oras pull "$RDK_ROOTFS_REF" )
+    EXPECTED_IMAGE="/vagrant/images/rdk-generic-broadband-image-qemux86broadband.lxc.tar.bz2"
+    if [ ! -f "$EXPECTED_IMAGE" ]; then
+      echo "oras pull succeeded but expected image not found: $EXPECTED_IMAGE" >&2
+      echo "Files in /vagrant/images:" >&2; ls -l /vagrant/images >&2
+      exit 1
+    fi
+
+    # Virtual WiFi radios, if requested.
+    if [ "${ENABLE_WIFI}" = "1" ]; then
+      modprobe mac80211_hwsim radios=4 || true
+      echo mac80211_hwsim > /etc/modules-load.d/mac80211_hwsim.conf
+    fi
+
+    cd /vagrant
+    docker compose -f "${COMPOSE_FILE}" pull
+
+    if systemctl is-active --quiet raikou-rdk-lxd.service; then
+      systemctl stop raikou-rdk-lxd.service
+    fi
+
+    # systemd unit owns the bench lifecycle: bench-up on start, bench-down on stop.
+    cat > /etc/systemd/system/raikou-rdk-lxd.service <<UNIT
+[Unit]
+Description=Raikou rdk_lxd bench (docker stack + LXD CPE)
+Wants=docker.service snap.lxd.daemon.service network-online.target
+After=docker.service snap.lxd.daemon.service network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/vagrant
+Environment=COMPOSE_FILE=${COMPOSE_FILE}
+Environment=ENABLE_WIFI=${ENABLE_WIFI}
+ExecStart=/vagrant/bench-up.sh
+ExecStop=/vagrant/bench-down.sh
+TimeoutStartSec=900
+TimeoutStopSec=300
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+    chmod +x /vagrant/bench-up.sh /vagrant/bench-down.sh /vagrant/rdk-cpe.sh
+    systemctl daemon-reload
+    systemctl enable --now raikou-rdk-lxd.service
+  SHELL
+end
