@@ -17,7 +17,7 @@ ENABLE_WIFI="${ENABLE_WIFI:-0}"
 CUST_ID="${CUST_ID:-8}"
 METADATA_YAML="${METADATA_YAML:-$SCRIPT_DIR/metadata.yaml}"
 PROFILE_TEMPLATE="${PROFILE_TEMPLATE:-$SCRIPT_DIR/profiles/vcpe.yaml}"
-RDK_IMAGE="${RDK_IMAGE:-$SCRIPT_DIR/images/rdk-generic-broadband-image-qemux86broadband.lxc.tar.bz2}"
+RDK_IMAGE="${RDK_IMAGE:-}"   # explicit path wins; else newest images/*.tar.bz2 (resolved in cmd_up)
 IMAGE_ALIAS="${IMAGE_ALIAS:-$CPE_NAME}"
 PROFILE_NAME="$CPE_NAME"
 NVRAM_VOL="${NVRAM_VOL:-vcpe-nvram}"
@@ -79,7 +79,14 @@ setup_wifi() {
 
 cmd_up() {
     check_lxd
-    [ -f "$RDK_IMAGE" ] || die "RDK rootfs not found: $RDK_IMAGE"
+    # Resolve the rootfs: an explicit RDK_IMAGE wins; otherwise pick the newest
+    # *.tar.bz2 under images/ (the filename varies by tag, e.g. qemux86 vs bpi).
+    if [ -z "$RDK_IMAGE" ]; then
+        RDK_IMAGE="$(ls -t "$SCRIPT_DIR"/images/*.tar.bz2 2>/dev/null | head -n1)"
+    fi
+    [ -n "$RDK_IMAGE" ] && [ -f "$RDK_IMAGE" ] || \
+        die "no RDK rootfs (*.tar.bz2) found in $SCRIPT_DIR/images (set RDK_IMAGE to override)"
+    log "using rootfs $RDK_IMAGE"
     wait_for_bridges
     setup_wifi
 

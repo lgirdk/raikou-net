@@ -58,6 +58,7 @@ vagrant ssh -c 'cd /vagrant && sudo ./bench-up.sh'     # bring back up
 | Var | Default | Meaning |
 | --- | --- | --- |
 | `VERSION` | `v3` | tag for the ghcr service images |
-| `RDK_ROOTFS_REF` | `ghcr.io/ketantewari/raikou/rdk-rootfs:qemux86broadband` | OCI ref for the rootfs |
+| `RDK_ROOTFS_REF` | `ghcr.io/ketantewari/raikou/rdk-rootfs:qemux86broadband` | OCI ref (tag) for the rootfs to pull (e.g. swap to the bpi tag) |
+| `RDK_IMAGE` | newest `images/*.tar.bz2` | explicit rootfs path; overrides the auto-pick when multiple tags were pulled |
 | `ENABLE_WIFI` | `0` | attach wlan0-3 to the CPE when `1` |
 | `CUST_ID` | `8` | passed to `set_customerID_pp` inside the CPE |
