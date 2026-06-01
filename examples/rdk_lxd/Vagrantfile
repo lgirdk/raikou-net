@@ -132,9 +132,9 @@ PRESEED
     # and must be re-pulled on each `vagrant destroy && vagrant up`.
     mkdir -p /vagrant/images
     ( cd /vagrant/images && oras pull "$RDK_ROOTFS_REF" )
-    EXPECTED_IMAGE="/vagrant/images/rdk-generic-broadband-image-qemux86broadband.lxc.tar.bz2"
-    if [ ! -f "$EXPECTED_IMAGE" ]; then
-      echo "oras pull succeeded but expected image not found: $EXPECTED_IMAGE" >&2
+    # The rootfs filename varies by tag (e.g. qemux86 vs bpi); accept any *.tar.bz2.
+    if ! ls /vagrant/images/*.tar.bz2 >/dev/null 2>&1; then
+      echo "oras pull succeeded but no .tar.bz2 rootfs found in /vagrant/images" >&2
       echo "Files in /vagrant/images:" >&2; ls -l /vagrant/images >&2
       exit 1
     fi
