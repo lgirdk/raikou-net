@@ -22,7 +22,7 @@ services:
             - 4001:22
             - 8001:8080
         environment:
-            - DNS_UPSTREAM=172.30.180.2
+            - DNS_UPSTREAM=8.8.8.8
             - LEGACY=no
         privileged: true
         hostname: wan
