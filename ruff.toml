@@ -1,28 +1,3 @@
-# Exclude a variety of commonly ignored directories.
-exclude = [
-    ".bzr",
-    ".direnv",
-    ".eggs",
-    ".git",
-    ".git-rewrite",
-    ".hg",
-    ".mypy_cache",
-    ".nox",
-    ".pants.d",
-    ".pytype",
-    ".ruff_cache",
-    ".svn",
-    ".tox",
-    ".venv",
-    "__pypackages__",
-    "_build",
-    "buck-out",
-    "build",
-    "dist",
-    "node_modules",
-    "venv",
-]
-
 line-length = 88
 
 target-version = "py311"
@@ -31,13 +6,11 @@ target-version = "py311"
 [lint]
 
 ignore = [
-    "ANN101", # annotation of self object
     "ANN204", # annotation of __init__()
     "D203",
     "D213",
     "FBT",    # boolean trap, no clear solution
-    "N",      # naming convention, already covered by pylint
-    "PT003",  # allow scope=function to be explicitly passed to fixtures
+    "N",      # naming-convention churn; enable in a dedicated pass
     "SIM114", # simplify if-elif by AND/OR combinations
     "TD",     # would conflict with TODO highligther
     "FIX002", # we need to keep TODOs in the code
@@ -57,17 +30,11 @@ unfixable = [
     "F401", # unused imports - we must know if we forgot something...
 ]
 
-[lint.per-file-ignores]
-
-"unittests/*" = [
-    "INP001",  # pytest works this way
-    "S101",    # we do use assert in unit test written for pytest
-    "D103",    # doc-strings are not mandatory for unittests
-    "SLF001",  # we do access private members for validation in unittests
-    "E501",    # line too long errors are ignored for unittests
-    "ANN401",  # dynamically typed expressions (typing.Any) are used in arguments
-    "PLR2004", # Magic value used in comparison
-]
+[lint.pyupgrade]
+# Preserve runtime-evaluated annotations (pydantic/FastAPI rely on them).
+# Mirrors the dropped `pyupgrade --keep-runtime-typing`; without it ruff's
+# UP fixes would rewrite annotations that must stay introspectable at runtime.
+keep-runtime-typing = true
 
 [lint.mccabe]
 # Unlike Flake8, default to a complexity level of 10.
