@@ -1,6 +1,6 @@
-# rdk_lxd — double_hop bench with an RDK-generic LXD CPE
+# rdk_lxd — prplos bench with an RDK-generic LXD CPE
 
-Same topology as [`../double_hop`](../double_hop), but the CPE is a **RDK-generic
+Same topology as [`../prplos`](../prplos), but the CPE is a **RDK-generic
 image** running as an **LXD container** instead of the PrplOS Docker `cpe` service.
 
 ```

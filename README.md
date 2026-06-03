@@ -380,9 +380,9 @@ docker compose restart
 
 (Only needed if the live reconcile / REST API can't apply the change.)
 
-## Trying it out with Vagrant (`examples/double_hop/`)
+## Trying it out with Vagrant (`examples/prplos/`)
 
-[examples/double_hop/Vagrantfile](examples/double_hop/Vagrantfile) spins up
+[examples/prplos/Vagrantfile](examples/prplos/Vagrantfile) spins up
 an Ubuntu 22.04 VM, installs Docker + the `openvswitch` kernel module, and
 runs the full double-hop stack (orchestrator + router/wan/lan/dhcp/cpe/acs/
 sip/phones/mongo). Every container port published by the compose file is
@@ -399,7 +399,7 @@ make demo-down       # vagrant halt
 To pick a different compose variant, run vagrant directly:
 
 ```bash
-cd examples/double_hop
+cd examples/prplos
 COMPOSE_FILE=docker-compose.yaml          vagrant up            # build from local components/
 COMPOSE_FILE=docker-compose.ghcr_rdkb.yaml vagrant provision    # switch stack on a running VM
 ```

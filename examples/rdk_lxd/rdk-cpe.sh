@@ -2,7 +2,7 @@
 # rdk-cpe.sh — deploy ("up") or tear down ("down") a single RDK-generic CPE as an
 # LXD container, attaching eth0/eth1 to the raikou-net orchestrator's Linux bridges.
 #
-# Distilled from gen/vcpe.sh + gen/gen-util.sh for the single-CPE double_hop bench.
+# Distilled from gen/vcpe.sh + gen/gen-util.sh for the single-CPE prplos bench.
 # Dropped vs. the original: suffix/vlan_map, host bridge creation, VLAN-translation
 # farm, lxdbr1, hashing and LXD-certificate helpers.
 set -uo pipefail

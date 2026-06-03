@@ -122,7 +122,7 @@ clean: ## Remove local image tags this Makefile produced (no -f)
 # Override COMPOSE_FILE=… to smoke a different compose variant later.
 
 SMOKE_IMAGES := orchestrator router wan lan dhcp cpe acs sipcenter sipphone
-SMOKE_DIR    := examples/double_hop
+SMOKE_DIR    := examples/prplos
 
 smoke: build ## Full smoke: build + ship to VM + compose up + probe + teardown
 	@trap '$(MAKE) smoke-logs > smoke.log 2>&1 || true; $(MAKE) smoke-down' EXIT; \

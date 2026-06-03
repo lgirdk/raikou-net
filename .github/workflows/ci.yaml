@@ -55,7 +55,7 @@ jobs:
               uses: actions/cache@v4
               with:
                   path: ~/.vagrant.d/boxes
-                  key: vagrant-boxes-${{ hashFiles('examples/double_hop/Vagrantfile') }}
+                  key: vagrant-boxes-${{ hashFiles('examples/prplos/Vagrantfile') }}
 
             - name: Show docker / buildx / vagrant versions
               run: |

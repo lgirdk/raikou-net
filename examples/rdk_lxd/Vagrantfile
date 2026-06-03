@@ -2,7 +2,7 @@
 # vi: set ft=ruby :
 #
 # Brings up an Ubuntu VM, installs Docker + LXD + oras, pulls the RDK rootfs from
-# GHCR, and starts the rdk_lxd bench: the double_hop docker stack (orchestrator on
+# GHCR, and starts the rdk_lxd bench: the prplos docker stack (orchestrator on
 # Linux bridges) plus a single RDK-generic CPE running as an LXD container wired
 # into the cpe-rtr / lan-cpe bridges.
 #
@@ -31,7 +31,7 @@ compose_path = File.join(__dir__, COMPOSE_FILE)
 abort "#{COMPOSE_FILE} not found in #{__dir__}" unless File.exist?(compose_path)
 
 # Scrape host:container port mappings from the compose file so published services
-# are reachable at localhost:<port> on the workstation (same trick as double_hop).
+# are reachable at localhost:<port> on the workstation (same trick as prplos).
 PORTS = File.readlines(compose_path).filter_map { |line|
   line.match(/^\s*-\s+"?(\d+):(\d+)"?\s*$/) { |m| [m[1].to_i, m[2].to_i] }
 }.uniq

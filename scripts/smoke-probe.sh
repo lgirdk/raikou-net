@@ -7,12 +7,12 @@
 #   3. the CPE container has a v4 address on its WAN-side interface
 #   4. the LAN container has a v4 address (DHCP-assigned) on its LAN-side iface
 #
-# Interface names are read from examples/double_hop/config.json (the
+# Interface names are read from examples/prplos/config.json (the
 # source of truth for the topology) via jq.
 #
 # Args: none. Env:
 #   COMPOSE_FILE  default docker-compose.ghcr.yaml
-#   COMPOSE_DIR   default /vagrant  (examples/double_hop's contents are
+#   COMPOSE_DIR   default /vagrant  (examples/prplos's contents are
 #                                    rsynced here by the Vagrantfile)
 #   POLL_INTERVAL default 5
 #   POLL_TIMEOUT  default 90
