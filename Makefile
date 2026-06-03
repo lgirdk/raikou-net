@@ -19,6 +19,10 @@ VERSION       ?= $(shell cat VERSION 2>/dev/null || echo v3)
 LATEST        ?= yes
 DOCKER        ?= docker
 COMPOSE_FILE  ?= docker-compose.ghcr.yaml
+# Which examples/<dir> the lifecycle targets (demo/up/down/logs) operate on.
+# `smoke` is intentionally pinned to prplos (the only example with a probe);
+# see the guard below.
+EXAMPLE       ?= prplos
 
 # These names are picked up by docker-bake.hcl's `variable` blocks.
 export VERSION
@@ -31,7 +35,7 @@ export REGISTRY := $(GHCR_REGISTRY)
 # doesn't need to duplicate the membership list.
 IMAGES := orchestrator ssh router wan lan dhcp ntp cpe acs sipcenter sipphone router-ethernet
 
-.PHONY: help lint build build-orchestrator build-components $(IMAGES) bump push clean smoke smoke-up smoke-down smoke-logs _smoke_ship _smoke_compose_up _smoke_probe demo demo-down all
+.PHONY: help lint build build-orchestrator build-components $(IMAGES) bump push clean smoke smoke-up smoke-down smoke-logs _smoke_guard _smoke_ship _smoke_compose_up _smoke_probe demo demo-down all
 
 # ----- Help -----
 help: ## Show this help and exit
@@ -124,13 +128,25 @@ clean: ## Remove local image tags this Makefile produced (no -f)
 SMOKE_IMAGES := orchestrator router wan lan dhcp cpe acs sipcenter sipphone
 SMOKE_DIR    := examples/prplos
 
-smoke: build ## Full smoke: build + ship to VM + compose up + probe + teardown
+# smoke is prplos-only: the probe (scripts/smoke-probe.sh) reads the prplos
+# topology. Fail fast if pointed elsewhere rather than silently probing prplos.
+ifneq ($(EXAMPLE),prplos)
+_SMOKE_GUARD = @echo "ERROR: 'make smoke' only supports EXAMPLE=prplos (got '$(EXAMPLE)')." >&2; \
+  echo "For the RDK LXD bench use: make demo EXAMPLE=rdk_lxd" >&2; exit 1
+else
+_SMOKE_GUARD = :
+endif
+
+_smoke_guard:
+	@$(_SMOKE_GUARD)
+
+smoke: _smoke_guard build ## Full smoke (prplos only): build + ship + compose up + probe + teardown
 	@trap '$(MAKE) smoke-logs > smoke.log 2>&1 || true; $(MAKE) smoke-down' EXIT; \
 	$(MAKE) _smoke_ship && \
 	$(MAKE) _smoke_compose_up && \
 	$(MAKE) _smoke_probe
 
-smoke-up: build ## Build + ship + compose up; leaves VM running for manual poking
+smoke-up: _smoke_guard build ## Build + ship + compose up (prplos only); leaves VM up for poking
 	$(MAKE) _smoke_ship
 	$(MAKE) _smoke_compose_up
 	@echo "VM is up. Probe with: make _smoke_probe   Teardown with: make smoke-down"
@@ -140,15 +156,15 @@ smoke-up: build ## Build + ship + compose up; leaves VM running for manual pokin
 # brings the Vagrant VM up and lets the systemd unit `compose up` pull the
 # published `ghcr.io/ketantewari/raikou/*:${VERSION}` images. Good for
 # kicking the tyres without waiting on a full host build.
-demo: ## Run the published GHCR stack in Vagrant (no local build)
-	cd $(SMOKE_DIR) && vagrant up
+demo: ## Run an example stack in Vagrant, no local build (EXAMPLE=prplos|rdk_lxd)
+	cd examples/$(EXAMPLE) && vagrant up
 	@echo ""
-	@echo "Demo stack is up. Forwarded ports are listed in the Vagrantfile;"
-	@echo "the orchestrator REST API is on http://localhost:8080."
-	@echo "Teardown:  make demo-down"
+	@echo "Demo stack '$(EXAMPLE)' is up. Forwarded ports are listed in the Vagrantfile."
+	@echo "For prplos, the orchestrator REST API is on http://localhost:8080."
+	@echo "Teardown:  make demo-down EXAMPLE=$(EXAMPLE)"
 
-demo-down: ## Halt the demo VM (the systemd unit's ExecStop tears down the stack)
-	-cd $(SMOKE_DIR) && vagrant halt 2>/dev/null || true
+demo-down: ## Halt the demo VM (ExecStop / bench-down.sh tears down the stack)
+	-cd examples/$(EXAMPLE) && vagrant halt 2>/dev/null || true
 
 smoke-down: ## Tear down the stack and halt the VM (safe anytime)
 	-cd $(SMOKE_DIR) && vagrant ssh -c "cd /vagrant && docker compose -f $(COMPOSE_FILE) down -v" 2>/dev/null || true
