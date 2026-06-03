@@ -69,7 +69,9 @@ check_orchestrator_log() {
 }
 poll "orchestrator log clean" check_orchestrator_log
 
-# ----- 3. CPE has v4 IP on its WAN-side interface -----
+# ----- 3. CPE has a DHCP v4 IP on its WAN-side (cpe-rtr) interface -----
+# Selected by bridge (cpe-rtr), not by name: resolves to eth1 in the prplos
+# config. The address is DHCP-assigned by the dhcp service via the router.
 # config.json shape (per app/utils.py TypedDicts):
 #   { "container": { "cpe": [ {"iface": "...", "bridge": "...", ...}, ... ], ... } }
 # Pick the iface attached to the cpe→router bridge (cpe-rtr). Selecting
@@ -85,9 +87,17 @@ check_cpe_ip() {
 }
 poll "cpe $cpe_iface has v4 ip" check_cpe_ip
 
-# ----- 4. LAN has v4 IP (DHCP-assigned) on its LAN-side interface -----
+# ----- 4. LAN gets a DHCP v4 IP on its LAN-side interface -----
+# The LAN container does not auto-request a lease on this iface, so kick off
+# an ISC dhclient run first (the lan image always ships isc-dhclient), then
+# poll for the address to land. dhclient output is printed so it lands in
+# smoke.log on failure; a non-zero dhclient exit is tolerated — the address
+# poll below is the real gate.
 lan_iface=$(jq -r '.container.lan[0].iface' config.json)
 [ -n "$lan_iface" ] && [ "$lan_iface" != "null" ] || fail "could not read lan iface from config.json"
+
+info "triggering dhclient on lan $lan_iface"
+docker exec lan dhclient -v "$lan_iface" || true
 
 check_lan_ip() {
   local ip
