@@ -10,8 +10,6 @@
 #   ENABLE_WIFI=1 vagrant up
 #   ENABLE_WIFI=1 vagrant provision      # on an already-running VM
 
-require "dotenv" rescue nil
-
 def env_from_dotenv(key, default)
   path = File.join(__dir__, ".env")
   if File.exist?(path)
@@ -73,6 +71,20 @@ Vagrant.configure("2") do |config|
     export DEBIAN_FRONTEND=noninteractive
     : "${RDK_ROOTFS_REF:?must be set}"
 
+    # GHCR intermittently returns transient 502s on its registry/token endpoints;
+    # without a retry a single blip aborts the whole (long) provision. Retry the
+    # wrapped command up to 5x with linear backoff (10s, 20s, ...).
+    retry() {
+      local n=0 max=5 delay
+      until "$@"; do
+        n=$((n + 1))
+        [ "$n" -ge "$max" ] && { echo "retry: '$*' failed after ${max} attempts" >&2; return 1; }
+        delay=$((n * 10))
+        echo "retry: '$*' failed (attempt ${n}/${max}, likely transient); sleeping ${delay}s" >&2
+        sleep "$delay"
+      done
+    }
+
     apt-get update
     apt-get install -y ca-certificates curl gnupg lsb-release bridge-utils snapd
 
@@ -82,8 +94,7 @@ Vagrant.configure("2") do |config|
       curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
         | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
       chmod a+r /etc/apt/keyrings/docker.gpg
-      . /etc/os-release
-      echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $VERSION_CODENAME stable" \
+      echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
         > /etc/apt/sources.list.d/docker.list
       apt-get update
       apt-get install -y docker-ce docker-ce-cli containerd.io \
@@ -94,9 +105,17 @@ Vagrant.configure("2") do |config|
     # LXD via snap, initialised via preseed with a dir pool and NO managed bridge
     # (plain `lxd init --auto` would create the lxdbr0 managed bridge, which we
     # must avoid — the orchestrator owns the bridges).
+    #
+    # NOTE: Ubuntu ships the lxd snap PREINSTALLED but UNINITIALISED, so gating the
+    # preseed on `command -v lxc` would skip it (the binary is already present) and
+    # leave LXD with no storage pool. Gate the install on the binary, but gate the
+    # preseed on whether our `default` storage pool actually exists — idempotent and
+    # self-healing across re-provisions.
     if ! command -v lxc >/dev/null 2>&1; then
       snap install lxd
-      lxd waitready --timeout=120 || { echo "LXD daemon not ready after 120s" >&2; exit 1; }
+    fi
+    lxd waitready --timeout=120 || { echo "LXD daemon not ready after 120s" >&2; exit 1; }
+    if ! lxc storage show default >/dev/null 2>&1; then
       lxd init --preseed <<'PRESEED'
 config: {}
 networks: []
@@ -131,13 +150,23 @@ PRESEED
     # NOTE: /vagrant is rsync (host->guest only); the pulled artifact is guest-local
     # and must be re-pulled on each `vagrant destroy && vagrant up`.
     mkdir -p /vagrant/images
-    ( cd /vagrant/images && oras pull "$RDK_ROOTFS_REF" )
+    ( cd /vagrant/images && retry oras pull "$RDK_ROOTFS_REF" )
     # The rootfs filename varies by tag (e.g. qemux86 vs bpi); accept any *.tar.bz2.
     if ! ls /vagrant/images/*.tar.bz2 >/dev/null 2>&1; then
       echo "oras pull succeeded but no .tar.bz2 rootfs found in /vagrant/images" >&2
       echo "Files in /vagrant/images:" >&2; ls -l /vagrant/images >&2
       exit 1
     fi
+
+    # Bridge-netfilter (ebtables) modules the RDK CPE needs. RDK's em_ctl sets up
+    # the ebtables 'broute' table at boot; the LXD container shares the host kernel
+    # but cannot load modules itself (its rootfs has no matching *.ko for this
+    # kernel), so load them on the VM and persist across reboots. NB: deliberately
+    # NOT loading br_netfilter — it would push bridged frames through iptables and
+    # collide with Docker's default FORWARD DROP policy on the orchestrator bridges.
+    modprobe -a ebtable_broute ebtable_filter ebtable_nat || true
+    printf '%s\n' ebtable_broute ebtable_filter ebtable_nat \
+      > /etc/modules-load.d/rdk-ebtables.conf
 
     # Virtual WiFi radios, if requested.
     if [ "${ENABLE_WIFI}" = "1" ]; then
@@ -146,7 +175,7 @@ PRESEED
     fi
 
     cd /vagrant
-    docker compose -f "${COMPOSE_FILE}" pull
+    retry docker compose -f "${COMPOSE_FILE}" pull
 
     if systemctl is-active --quiet raikou-rdk-lxd.service; then
       systemctl stop raikou-rdk-lxd.service
