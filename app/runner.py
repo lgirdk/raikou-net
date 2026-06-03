@@ -69,7 +69,7 @@ def _spawn_reconcile_task() -> None:
 
 
 @asynccontextmanager
-async def app_lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
+async def app_lifespan(_app: FastAPI) -> AsyncGenerator[None]:
     """Lifespan context: spawn reconcile task on startup, drain on shutdown.
 
     :param _app: The FastAPI application instance (unused, required by interface).
