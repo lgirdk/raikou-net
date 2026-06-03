@@ -193,6 +193,11 @@ smoke-logs: ## Dump orchestrator.log + per-service compose logs from the VM
 # ----- Internal helpers (underscore-prefixed; not for direct use) -----
 _smoke_ship:
 	@echo "[smoke] saving $(words $(SMOKE_IMAGES)) images to VM..."
+	@# Always start from a fresh VM so the provisioner re-runs with AUTOSTART=0
+	@# (the gate that skips the GHCR pull/autostart). Without this, a VM left
+	@# over from `make demo` (AUTOSTART=1, unit enabled) would pull+start the
+	@# published stack on boot and smoke would not test the local images.
+	@cd $(SMOKE_DIR) && vagrant destroy -f 2>/dev/null || true
 	@cd $(SMOKE_DIR) && AUTOSTART=0 vagrant up
 	@cd $(SMOKE_DIR) && vagrant rsync
 	@$(DOCKER) save \
