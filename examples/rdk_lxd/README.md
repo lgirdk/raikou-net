@@ -4,9 +4,9 @@ Same topology as [`../double_hop`](../double_hop), but the CPE is a **RDK-generi
 image** running as an **LXD container** instead of the PrplOS Docker `cpe` service.
 
 ```
-router(cpe) ── cpe-rtr ── eth0  [ RDK CPE (LXD) ]  eth1 ── lan-cpe ── lan, lan-phone
+router(cpe) ── cpe-rtr ── eth0  [ RDK CPE (LXD) ]  eth1 ── lan-cpe ── lan
                                                   (wlan0-3 optional)
-router(eth1) ── rtr-wan ── wan, dhcp, acs, sipcenter, wan-phone
+router(eth1) ── rtr-wan ── wan, dhcp, acs
 router(aux0) ── rtr-uplink            (stub for an external uplink)
 ```
 
