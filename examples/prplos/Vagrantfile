@@ -2,7 +2,7 @@
 # vi: set ft=ruby :
 #
 # Brings up an Ubuntu VM, installs Docker + Open vSwitch kernel module,
-# and starts a double_hop stack from one of the docker-compose*.yaml files
+# and starts a prplos double-hop stack from one of the docker-compose*.yaml files
 # in this directory.
 #
 # Every host:container port published by the selected compose file is
@@ -39,7 +39,7 @@ PORTS = File.readlines(compose_path).filter_map { |line|
 
 Vagrant.configure("2") do |config|
   config.vm.box      = "generic/ubuntu2204"
-  config.vm.hostname = "raikou-double-hop"
+  config.vm.hostname = "raikou-prplos"
 
   # Make this directory available inside the VM so the orchestrator can read
   # config.json and the kea configs referenced by the compose file. rsync
@@ -107,16 +107,16 @@ Vagrant.configure("2") do |config|
     # If a previous unit is running (possibly pointing at a different compose
     # file), stop it first so its old ExecStop tears down the right stack
     # before we rewrite the unit.
-    if systemctl is-active --quiet raikou-double-hop.service; then
-      systemctl stop raikou-double-hop.service
+    if systemctl is-active --quiet raikou-prplos.service; then
+      systemctl stop raikou-prplos.service
     fi
 
     # Install a systemd unit that owns the lifecycle of the compose stack.
     # ExecStart runs `up -d` on boot; ExecStop runs `down` on shutdown,
     # giving containers a clean exit before docker.service stops.
-    cat > /etc/systemd/system/raikou-double-hop.service <<UNIT
+    cat > /etc/systemd/system/raikou-prplos.service <<UNIT
 [Unit]
-Description=Raikou double_hop docker compose stack (${COMPOSE_FILE})
+Description=Raikou prplos docker compose stack (${COMPOSE_FILE})
 Requires=docker.service
 After=docker.service network-online.target
 Wants=network-online.target
@@ -136,6 +136,6 @@ WantedBy=multi-user.target
 UNIT
 
     systemctl daemon-reload
-    systemctl enable --now raikou-double-hop.service
+    systemctl enable --now raikou-prplos.service
   SHELL
 end
