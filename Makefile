@@ -14,7 +14,11 @@ SHELL         := /bin/bash
 .SHELLFLAGS   := -o pipefail -c
 
 # ----- Configuration (override on CLI: `make push VERSION=v4`) -----
+# REGISTRY is the image-name prefix for build/push. GHCR_REGISTRY is a legacy
+# alias kept for back-compat (older invocations passed GHCR_REGISTRY=...).
+# Override either: `make push REGISTRY=localhost:5000/raikou`.
 GHCR_REGISTRY ?= ghcr.io/ketantewari/raikou
+REGISTRY      ?= $(GHCR_REGISTRY)
 VERSION       ?= $(shell cat VERSION 2>/dev/null || echo v3)
 LATEST        ?= yes
 DOCKER        ?= docker
@@ -27,7 +31,7 @@ EXAMPLE       ?= prplos
 # These names are picked up by docker-bake.hcl's `variable` blocks.
 export VERSION
 export LATEST
-export REGISTRY := $(GHCR_REGISTRY)
+export REGISTRY
 
 # Image targets — names match bake target names verbatim. The push-set
 # (images that get GHCR tags) is declared inside docker-bake.hcl as the
@@ -97,8 +101,8 @@ clean: ## Remove local image tags this Makefile produced (no -f)
 	    ssh) \
 	      $(DOCKER) rmi "ssh:v2.0.0" 2>/dev/null || true ;; \
 	  esac; \
-	  $(DOCKER) rmi "$(GHCR_REGISTRY)/$$img:$(VERSION)" 2>/dev/null || true; \
-	  $(DOCKER) rmi "$(GHCR_REGISTRY)/$$img:latest"    2>/dev/null || true; \
+	  $(DOCKER) rmi "$(REGISTRY)/$$img:$(VERSION)" 2>/dev/null || true; \
+	  $(DOCKER) rmi "$(REGISTRY)/$$img:latest"    2>/dev/null || true; \
 	done
 
 # ----- Smoke (host ↔ Vagrant ↔ probe) -----
@@ -188,7 +192,7 @@ _smoke_ship:
 	@cd $(SMOKE_DIR) && vagrant up
 	@cd $(SMOKE_DIR) && vagrant rsync
 	@$(DOCKER) save \
-	  $(foreach i,$(SMOKE_IMAGES),$(GHCR_REGISTRY)/$(i):$(VERSION)) \
+	  $(foreach i,$(SMOKE_IMAGES),$(REGISTRY)/$(i):$(VERSION)) \
 	  | gzip \
 	  | (cd $(SMOKE_DIR) && vagrant ssh -c 'gunzip | docker load')
 
