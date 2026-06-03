@@ -88,7 +88,7 @@ bump: ## Update VERSION file + all examples/*/.env (requires VERSION=...)
 	@echo "VERSION → $(VERSION); review with: git diff"
 
 # ----- Push (delegates to bake, LATEST gated by env var consumed in bake.hcl) -----
-push: build ## Push the 11-image push-set to GHCR (LATEST=no to skip :latest)
+push: build ## Push the 10-image push-set to GHCR (ssh excluded; LATEST=no to skip :latest)
 	$(DOCKER) buildx bake --push push-set
 
 # ----- Clean (remove local tags this Makefile produced) -----

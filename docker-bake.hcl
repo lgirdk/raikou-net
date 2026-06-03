@@ -8,7 +8,7 @@
 # Groups:
 #   default     — everything (orchestrator + components)
 #   components  — every component image (12 targets)
-#   push-set    — the 11 images published to GHCR
+#   push-set    — the 10 images published to GHCR (ssh is a build-only dep)
 #
 # ssh dependency: each ssh-dependent target declares
 #   contexts = { "ssh:v2.0.0" = "target:ssh" }
@@ -129,8 +129,10 @@ group "components" {
 }
 
 group "push-set" {
+  # ssh is intentionally excluded — it is built as a dependency (target:ssh)
+  # and baked into each component, so it never needs publishing on its own.
   targets = [
-    "orchestrator", "ssh",
+    "orchestrator",
     "router", "wan", "lan", "dhcp", "ntp",
     "cpe", "acs", "sipcenter", "sipphone",
   ]

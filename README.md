@@ -80,7 +80,7 @@ target with a one-line description.
 | `make build-components`   | Build only the component images (no orchestrator)                             |
 | `make <name>`             | Build a single image — e.g. `make router`, `make ssh`, `make cpe`             |
 | `make bump VERSION=v4`    | Bump the published image tag (rewrites `VERSION` and `examples/*/.env`)       |
-| `make push`               | Push the 11-image set to GHCR (`LATEST=no` to skip the `:latest` tag)         |
+| `make push`               | Push the 10-image set to GHCR (`LATEST=no` to skip the `:latest` tag)         |
 | `make demo`               | Spin up an example stack in Vagrant, no local build (`EXAMPLE=prplos\|rdk_lxd`) |
 | `make demo-down`          | Halt the demo VM (`EXAMPLE=` to match)                                        |
 | `make smoke`              | Build locally + ship to Vagrant + run the smoke probe + teardown              |
@@ -456,7 +456,7 @@ trailing separator) are rejected before any file is touched.
 
 `make push` first runs `make build` (so a fresh push always reflects the
 current tree), then `docker buildx bake --push push-set` publishes the
-11-image set with two tags each: `:${VERSION}` and `:latest`.
+10-image set with two tags each: `:${VERSION}` and `:latest`.
 
 Both `build` and `push` honor a `REGISTRY=` override (default
 `ghcr.io/ketantewari/raikou`), allowing publication to any registry — for
@@ -479,10 +479,10 @@ make push LATEST=no
 
 Releases are pushed manually from a developer workstation; CI runs
 `make build` and `make smoke` on every PR but never pushes. The `ssh`
-base image must be reachable in the registry before downstream component
-images can be built from a fresh clone without local source, so `make
-push` always publishes both `ssh` and its dependents in a single bake
-invocation.
+base image is **not** published by `make push` — it is built as a local
+dependency (`target:ssh`) and baked into each component image, so it
+never needs to be pulled from the registry. (If an external consumer
+ever needs `ghcr.io/.../ssh`, push it manually.)
 
 ### Build matrix
 
