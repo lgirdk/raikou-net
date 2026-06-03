@@ -3,7 +3,7 @@
 # See https://pre-commit.com/hooks.html for more hooks
 repos:
     - repo: https://github.com/commitizen-tools/commitizen
-      rev: v4.8.3
+      rev: v4.16.3
       hooks:
           - id: commitizen
             stages: [commit-msg]
@@ -33,8 +33,6 @@ repos:
           - id: check-added-large-files
             args: [--maxkb=3000]
             stages: [pre-commit]
-          - id: requirements-txt-fixer
-            stages: [pre-commit]
           - id: check-merge-conflict
             stages: [pre-commit]
           - id: debug-statements
@@ -44,7 +42,7 @@ repos:
             files: \.py$
             stages: [pre-commit]
     - repo: https://github.com/Lucas-C/pre-commit-hooks
-      rev: v1.5.5
+      rev: v1.5.6
       hooks:
           - id: remove-crlf
             stages: [pre-commit]
@@ -58,50 +56,24 @@ repos:
             # Makefiles need literal recipe-line tabs.
             exclude: (cm-cfg|(^|/)Makefile$)
             stages: [pre-commit]
-    - repo: https://github.com/myint/eradicate
-      rev: 3.0.0
-      hooks:
-          - id: eradicate
-            name: eradicate
-            description: Apply eradicate
-            entry: eradicate
-            language: python
-            files: \.py$
-            args: [--in-place]
-            stages: [pre-commit]
-    - repo: https://github.com/asottile/pyupgrade
-      rev: v3.20.0
-      hooks:
-          - id: pyupgrade
-            args: [--py39-plus, --keep-runtime-typing]
-            stages: [pre-commit]
-    - repo: https://github.com/ikamensh/flynt/
-      rev: 1.0.6
-      hooks:
-          - id: flynt
-            stages: [pre-commit]
     - repo: https://github.com/jumanjihouse/pre-commit-hook-yamlfmt
       rev: 0.2.3
       hooks:
           - id: yamlfmt
             stages: [pre-commit]
     - repo: https://github.com/adrienverge/yamllint.git
-      rev: v1.37.1
+      rev: v1.38.0
       hooks:
           - id: yamllint
             args: [--format, parsable]
             stages: [pre-commit]
     - repo: https://github.com/astral-sh/ruff-pre-commit
-      rev: v0.12.8
+      rev: v0.15.15
       hooks:
-          - id: ruff
-            # https://docs.astral.sh/ruff/formatter/#sorting-imports
-            args: [check, --select, I, --fix]
-            name: ruff-isort
+          - id: ruff-check
+            args: [--fix]
             stages: [pre-commit]
           - id: ruff-format
-            stages: [pre-commit]
-          - id: ruff
             stages: [pre-commit]
     - repo: https://github.com/akaihola/darglint2
       rev: v1.8.2
