@@ -15,7 +15,6 @@ WAN_BRIDGE="${WAN_BRIDGE:-cpe-rtr}"
 LAN_BRIDGE="${LAN_BRIDGE:-lan-cpe}"
 ENABLE_WIFI="${ENABLE_WIFI:-0}"
 CUST_ID="${CUST_ID:-8}"
-METADATA_YAML="${METADATA_YAML:-$SCRIPT_DIR/metadata.yaml}"
 PROFILE_TEMPLATE="${PROFILE_TEMPLATE:-$SCRIPT_DIR/profiles/vcpe.yaml}"
 RDK_IMAGE="${RDK_IMAGE:-}"   # explicit path wins; else newest images/*.tar.bz2 (resolved in cmd_up)
 IMAGE_ALIAS="${IMAGE_ALIAS:-$CPE_NAME}"
@@ -45,18 +44,6 @@ wait_for_bridges() {
         done
         log "bridge $b present"
     done
-}
-
-# Emits the path to a freshly built metadata.tar.gz on stdout.
-build_metadata() {
-    [ -f "$METADATA_YAML" ] || die "metadata template not found: $METADATA_YAML"
-    local work; work="$(mktemp -d)"
-    trap "rm -rf '$work'" EXIT
-    sed -e "s/^creation_date:.*/creation_date: $(date +%s)/" \
-        -e "s|^\( *description:\).*|\1 \"OFW LXD image ($(date +%Y%m%d_%H:%M))\"|" \
-        "$METADATA_YAML" > "$work/metadata.yaml"
-    tar -C "$work" -czf "$work/metadata.tar.gz" metadata.yaml
-    echo "$work/metadata.tar.gz"
 }
 
 setup_wifi() {
@@ -94,10 +81,13 @@ cmd_up() {
     lxc storage volume show default "$NVRAM_VOL" >/dev/null 2>&1 || \
         lxc storage volume create default "$NVRAM_VOL" size=4MiB
 
-    # import image (always refresh the alias)
-    local meta; meta="$(build_metadata)"
+    # import image (always refresh the alias). The RDK *.lxc.tar.bz2 is a UNIFIED
+    # LXD image: it already embeds its own metadata.yaml + rootfs/, so it must be
+    # imported with a SINGLE argument. Importing it split (metadata + rootfs) makes
+    # LXD treat the whole blob as the rootfs, nesting the real filesystem under
+    # /rootfs/ inside the container — which breaks `exec /sbin/init` at start.
     lxc image delete "$IMAGE_ALIAS" 2>/dev/null || true
-    lxc image import "$meta" "$RDK_IMAGE" --alias "$IMAGE_ALIAS" || die "lxc image import failed"
+    lxc image import "$RDK_IMAGE" --alias "$IMAGE_ALIAS" || die "lxc image import failed"
 
     # profile from template
     lxc profile create "$PROFILE_NAME" 2>/dev/null || true
