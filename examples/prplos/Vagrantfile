@@ -148,9 +148,13 @@ UNIT
     if [ "${AUTOSTART:-1}" = "1" ]; then
       systemctl enable --now raikou-prplos.service
     else
-      # smoke owns lifecycle via the Makefile (_smoke_compose_up / smoke-down);
-      # keep the unit installed but disabled so it never pulls/starts on boot.
-      systemctl disable raikou-prplos.service 2>/dev/null || true
+      # AUTOSTART=0 (smoke): don't pull and don't start the stack now — the
+      # Makefile loads the locally-built images and brings the stack up itself
+      # this run. Still ENABLE the unit (without --now) so a later `make demo`
+      # or manual `vagrant up` that reuses this VM starts the stack on boot.
+      # smoke always recreates the VM (vagrant destroy in _smoke_ship), so the
+      # enabled unit never fires before the local images are loaded.
+      systemctl enable raikou-prplos.service
     fi
   SHELL
 end
