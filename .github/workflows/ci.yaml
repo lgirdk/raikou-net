@@ -16,7 +16,7 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 10
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v5
 
             - name: Set up Python
               uses: actions/setup-python@v5
@@ -40,7 +40,7 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 45
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v5
 
             # GitHub-hosted ubuntu-latest runners stopped shipping Vagrant +
             # VirtualBox in mid-2024 (image-size reduction). Install them
@@ -78,7 +78,7 @@ jobs:
 
             - name: Upload failure artifacts
               if: failure()
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v5
               with:
                   name: smoke-failure-${{ github.run_id }}
                   path: ci-smoke-artifacts.tar.gz
