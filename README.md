@@ -14,48 +14,43 @@
     src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json"></a>
 </p> <hr>
 
-Raikou-Net is a Docker-in-Docker orchestrator that wires other containers on
-the same host into a declarative network topology. It can use either
-Open vSwitch (OVS, default) or plain Linux bridges as the dataplane.
+Raikou-Net is a Docker-in-Docker topology orchestrator. It wires other
+containers on the same host into a declarative network topology using a
+pluggable dataplane: Open vSwitch (OVS, the default) or plain Linux bridges
+today, with room for additional backends later.
 
 The orchestrator runs `privileged`, `pid: host`, and `network_mode: host`,
 mounts the host Docker socket, and pushes veth interfaces into peer
 containers based on a single declarative `config.json`. It also exposes a
 small FastAPI REST surface for mutating topology on the fly.
 
+## Quick start
 
-## Benefits of Using Open vSwitch (OVS) for Docker Networking
+`make demo` brings up a published stack in a Vagrant VM, with no local build:
 
-1. **Integration with Existing Network Infrastructure:** OVS seamlessly
-integrates with existing network infrastructure and can be easily connected to
-physical networks, routers, and switches. This makes it ideal for hybrid
-environments where Docker containers need to communicate with external systems
-or legacy infrastructure.
+```bash
+make demo                      # prplos stack (default)
+make demo EXAMPLE=rdk_lxd      # RDK CPE as an LXD container
+make demo-down                 # halt the VM (pass EXAMPLE= to match)
+```
 
-2. **Advanced Networking Features:** OVS provides a wide range of advanced
-networking features such as VLAN tagging, VXLAN overlay networks, GRE tunnels,
-and more. This enables greater flexibility in designing and managing network
-topologies.
+### Examples
 
-3. **Performance and Scalability:** OVS is known for its high-performance
-capabilities and scalability. It efficiently handles a large number of virtual
-interfaces and network flows, making it suitable for complex and
-demanding network environments.
+| Example | CPE | Dataplane | Verification |
+| --- | --- | --- | --- |
+| [`examples/prplos`](examples/prplos) | PrplOS Docker `cpe` service | OVS or Linux bridge | `make smoke` (CI-gated) |
+| [`examples/rdk_lxd`](examples/rdk_lxd) | RDK-generic LXD container | Linux bridge | demo only |
 
-4. **Network Isolation and Security:** OVS allows for finer-grained network
-isolation and security controls. It supports the creation of multiple isolated
- bridges and offers features like access control lists (ACLs) and flow-based
- filtering, providing more granular control over network traffic.
+Both examples share the same double-hop topology and differ only in the CPE.
+`prplos` is the reference variant, exercised by `make smoke` in CI.
 
+## Dataplane backends
 
-5. **Interoperability and Vendor Neutrality:** OVS is an open-source project
-with wide industry adoption. It is not tied to a specific vendor or platform,
-offering greater interoperability and vendor neutrality. This flexibility allows
-for the choice of networking solutions without vendor lock-in.
-
-To learn more about Docker networking with OVS and how to utilize it
-effectively, refer to the documentation on
-[Docker Networking with Open vSwitch](https://ovs.readthedocs.io/en/latest/howto/docker.html).
+The dataplane is pluggable and selected at runtime. Open vSwitch (the default)
+provides VLAN tagging, trunking, and flow-based control; plain Linux bridges
+(`USE_LINUX_BRIDGE=true`) are a lighter alternative. Both are driven from the
+same `config.json`. See the
+[OVS + Docker documentation](https://ovs.readthedocs.io/en/latest/howto/docker.html).
 
 
 ## Features
@@ -86,8 +81,8 @@ target with a one-line description.
 | `make <name>`             | Build a single image — e.g. `make router`, `make ssh`, `make cpe`             |
 | `make bump VERSION=v4`    | Bump the published image tag (rewrites `VERSION` and `examples/*/.env`)       |
 | `make push`               | Push the 11-image set to GHCR (`LATEST=no` to skip the `:latest` tag)         |
-| `make demo`               | Spin up the published GHCR stack inside Vagrant (no local build)              |
-| `make demo-down`          | Halt the demo VM                                                              |
+| `make demo`               | Spin up an example stack in Vagrant, no local build (`EXAMPLE=prplos\|rdk_lxd`) |
+| `make demo-down`          | Halt the demo VM (`EXAMPLE=` to match)                                        |
 | `make smoke`              | Build locally + ship to Vagrant + run the smoke probe + teardown              |
 | `make smoke-up`           | Same as `smoke` minus the probe and teardown (leaves the VM up for poking)    |
 | `make smoke-logs`         | Dump orchestrator log + per-service compose logs from inside the VM           |
@@ -382,12 +377,13 @@ docker compose restart
 
 ## Trying it out with Vagrant (`examples/prplos/`)
 
-[examples/prplos/Vagrantfile](examples/prplos/Vagrantfile) spins up
-an Ubuntu 22.04 VM, installs Docker + the `openvswitch` kernel module, and
-runs the full double-hop stack (orchestrator + router/wan/lan/dhcp/cpe/acs/
-sip/phones/mongo). Every container port published by the compose file is
-forwarded `guest == host`, so the stack is reachable at `localhost:<port>`
-on your workstation.
+[examples/prplos/Vagrantfile](examples/prplos/Vagrantfile) spins up an
+Ubuntu 22.04 VM, installs Docker + the `openvswitch` kernel module, and runs
+the full double-hop stack (orchestrator + router/wan/lan/dhcp/cpe/acs/sip/
+phones/mongo). Every container port published by the compose file is forwarded
+`guest == host`, so the stack is reachable at `localhost:<port>` on your
+workstation. The RDK variant lives in [`examples/rdk_lxd`](examples/rdk_lxd)
+and is driven with `make demo EXAMPLE=rdk_lxd`.
 
 For a one-command demo of the published GHCR stack (no local build):
 
@@ -419,7 +415,7 @@ Things worth knowing before you change the Vagrant setup:
   `/etc/modules-load.d/openvswitch.conf` — the orchestrator bind-mounts
   `/lib/modules` and calls `ovs-ctl force-reload-kmod`, which fails
   without this.
-- A systemd unit (`raikou-double-hop.service`) owns the compose lifecycle.
+- A systemd unit (`raikou-prplos.service`) owns the compose lifecycle.
   `ExecStart` runs `up -d` on every boot, `ExecStop` runs `compose down`
   on shutdown so containers exit cleanly before `docker.service` stops.
 - `COMPOSE_FILE` is baked into the unit at provision time, not read at
@@ -456,11 +452,23 @@ It does *not* commit, tag, or push. Review the diff with `git diff`,
 commit it, then run `make push`. Malformed values (empty, no `v` prefix,
 trailing separator) are rejected before any file is touched.
 
-### Pushing to GHCR
+### Building & publishing to a registry
 
 `make push` first runs `make build` (so a fresh push always reflects the
 current tree), then `docker buildx bake --push push-set` publishes the
 11-image set with two tags each: `:${VERSION}` and `:latest`.
+
+Both `build` and `push` honor a `REGISTRY=` override (default
+`ghcr.io/ketantewari/raikou`), allowing publication to any registry — for
+example a locally hosted one — instead of GHCR:
+
+```bash
+make build REGISTRY=localhost:5000/raikou VERSION=dev
+make push  REGISTRY=localhost:5000/raikou VERSION=dev
+```
+
+`VERSION=` sets the image tag; the legacy `GHCR_REGISTRY=` name remains a
+supported alias.
 
 To push a versioned tag without moving `:latest` (release candidates,
 dev builds):
