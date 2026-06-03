@@ -24,6 +24,13 @@
 # start the new stack.
 
 COMPOSE_FILE = ENV.fetch("COMPOSE_FILE", "docker-compose.ghcr.yaml")
+# AUTOSTART=1 (default): provisioner pulls images and starts the compose stack
+# via the systemd unit (used by `make demo` / manual `vagrant up`).
+# AUTOSTART=0: skip the pull and leave the unit installed-but-disabled, so the
+# stack is NOT brought up at provision time or on later boots. `make smoke`
+# sets this so the locally-built images (loaded later via docker save|load)
+# are what gets tested, instead of pulling from GHCR.
+AUTOSTART = ENV.fetch("AUTOSTART", "1")
 
 compose_path = File.join(__dir__, COMPOSE_FILE)
 unless File.exist?(compose_path)
@@ -66,7 +73,7 @@ Vagrant.configure("2") do |config|
   end
 
   config.vm.provision "shell",
-    env: { "COMPOSE_FILE" => COMPOSE_FILE },
+    env: { "COMPOSE_FILE" => COMPOSE_FILE, "AUTOSTART" => AUTOSTART },
     inline: <<-SHELL
     set -eux
     export DEBIAN_FRONTEND=noninteractive
@@ -102,7 +109,9 @@ Vagrant.configure("2") do |config|
     usermod -aG docker vagrant
 
     cd /vagrant
-    docker compose -f "${COMPOSE_FILE}" pull
+    if [ "${AUTOSTART:-1}" = "1" ]; then
+      docker compose -f "${COMPOSE_FILE}" pull
+    fi
 
     # If a previous unit is running (possibly pointing at a different compose
     # file), stop it first so its old ExecStop tears down the right stack
@@ -136,6 +145,12 @@ WantedBy=multi-user.target
 UNIT
 
     systemctl daemon-reload
-    systemctl enable --now raikou-prplos.service
+    if [ "${AUTOSTART:-1}" = "1" ]; then
+      systemctl enable --now raikou-prplos.service
+    else
+      # smoke owns lifecycle via the Makefile (_smoke_compose_up / smoke-down);
+      # keep the unit installed but disabled so it never pulls/starts on boot.
+      systemctl disable raikou-prplos.service 2>/dev/null || true
+    fi
   SHELL
 end

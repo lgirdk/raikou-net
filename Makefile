@@ -189,7 +189,7 @@ smoke-logs: ## Dump orchestrator.log + per-service compose logs from the VM
 # ----- Internal helpers (underscore-prefixed; not for direct use) -----
 _smoke_ship:
 	@echo "[smoke] saving $(words $(SMOKE_IMAGES)) images to VM..."
-	@cd $(SMOKE_DIR) && vagrant up
+	@cd $(SMOKE_DIR) && AUTOSTART=0 vagrant up
 	@cd $(SMOKE_DIR) && vagrant rsync
 	@$(DOCKER) save \
 	  $(foreach i,$(SMOKE_IMAGES),$(REGISTRY)/$(i):$(VERSION)) \
