@@ -145,7 +145,11 @@ _smoke_guard:
 	@$(_SMOKE_GUARD)
 
 smoke: _smoke_guard build ## Full smoke (prplos only): build + ship + compose up + probe + teardown
-	@trap '$(MAKE) smoke-logs > smoke.log 2>&1 || true; $(MAKE) smoke-down' EXIT; \
+	@rm -f smoke-probe.log
+	@trap '{ echo "===== SMOKE PROBE RESULT ====="; \
+	         cat smoke-probe.log 2>/dev/null || echo "(probe did not run)"; \
+	         echo; $(MAKE) smoke-logs; } > smoke.log 2>&1 || true; \
+	       $(MAKE) smoke-down' EXIT; \
 	$(MAKE) _smoke_ship && \
 	$(MAKE) _smoke_compose_up && \
 	$(MAKE) _smoke_probe
@@ -202,7 +206,9 @@ _smoke_compose_up:
 	  docker compose -f $(COMPOSE_FILE) --env-file .env up -d --pull=missing'
 
 _smoke_probe:
-	@cat scripts/smoke-probe.sh | (cd $(SMOKE_DIR) && vagrant ssh -- 'bash -s')
+	@cat scripts/smoke-probe.sh \
+	  | (cd $(SMOKE_DIR) && vagrant ssh -- 'bash -s') 2>&1 \
+	  | tee smoke-probe.log
 
 # ----- Composite -----
 all: lint build smoke ## Full local CI: lint + build + smoke
