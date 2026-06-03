@@ -1,4 +1,8 @@
 {
+    "[makefile]": {
+        "editor.detectIndentation": false,
+        "editor.insertSpaces": false
+    },
     "[python]": {
         "editor.codeActionsOnSave": {
             "source.fixAll": "explicit",
@@ -24,6 +28,5 @@
     "ruff.importStrategy": "fromEnvironment",
     "ruff.lint.run": "onSave",
     "ruff.organizeImports": true,
-    "workbench.editor.enablePreview": false,
-    "[makefile]": {"editor.insertSpaces": false, "editor.detectIndentation": false}
+    "workbench.editor.enablePreview": false
 }

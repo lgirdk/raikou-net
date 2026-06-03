@@ -19,6 +19,7 @@ from pydantic import BaseModel
 
 _LOCK = Lock()
 APP = FastAPI()
+logger = logging.getLogger(__name__)
 
 LOG_CONFIG = uvicorn.config.LOGGING_CONFIG
 LOG_HANDLERS = {
@@ -72,7 +73,7 @@ def check_and_start_service(service: Literal["dhcp4", "dhcp6"]) -> None:
             start_service(service)
 
     except subprocess.CalledProcessError as e:
-        logging.exception("Error checking status: %s", e.stderr)
+        logger.exception("Error checking status: %s", e.stderr)
 
 
 def start_service(service: Literal["dhcp4", "dhcp6"]) -> None:
@@ -93,7 +94,7 @@ def start_service(service: Literal["dhcp4", "dhcp6"]) -> None:
             check=True,
         )
     except subprocess.CalledProcessError as e:
-        logging.exception("Error starting %s service: %s", service, e.stderr)
+        logger.exception("Error starting %s service: %s", service, e.stderr)
 
 
 def _update_reservation(data: DHCPData, mode: str) -> None:

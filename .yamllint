@@ -1,0 +1,8 @@
+---
+# yamllint's stock default caps lines at 80, which is too tight for GitHub
+# Actions `run:` blocks (APT source lines, signed-by keyring paths, etc.).
+# Bump to 120 but keep it an enforced error so genuinely runaway lines fail.
+extends: default
+rules:
+    line-length:
+        max: 120
