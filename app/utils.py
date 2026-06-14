@@ -849,7 +849,7 @@ def get_all_container_ifaces() -> list[dict[str, object]]:
     return get_tinydb().table("container_ifaces").all()
 
 
-def delete_container_iface(bridge: str, container: str, iface: str) -> None:
+def clear_container_iface(bridge: str, container: str, iface: str) -> None:
     """Remove the `container_ifaces` row for the triple. No-op if absent.
 
     :param bridge: The bridge name.
@@ -862,14 +862,16 @@ def delete_container_iface(bridge: str, container: str, iface: str) -> None:
     q = Query()
     table = get_tinydb().table("container_ifaces")
     cond = (q.bridge == bridge) & (q.container == container) & (q.iface == iface)
-    if table.get(cond) is None:
-        return
-    table.remove(cond)
-    mark_db_dirty()
+    removed = table.remove(cond)
+    if removed:
+        mark_db_dirty()
 
 
 def get_all_veth_ifaces() -> list[dict[str, object]]:
     """Return all v0_-prefixed rows from `bridge_ifaces`.
+
+    Returns one row per veth pair. Callers that delete pairs must use
+    remove_veth_pair to clean up both v0_ and v1_ ends.
 
     :return: All tracked veth pair endpoint rows (v0_ prefix only).
     :rtype: list[dict[str, object]]
@@ -877,7 +879,7 @@ def get_all_veth_ifaces() -> list[dict[str, object]]:
     return get_tinydb().table("bridge_ifaces").search(Query().iface.matches(r"^v0_"))
 
 
-def delete_bridge_iface(bridge: str, iface: str) -> None:
+def clear_bridge_iface(bridge: str, iface: str) -> None:
     """Remove the `bridge_ifaces` row for `(bridge, iface)`. No-op if absent.
 
     :param bridge: The bridge name.
@@ -888,7 +890,6 @@ def delete_bridge_iface(bridge: str, iface: str) -> None:
     q = Query()
     table = get_tinydb().table("bridge_ifaces")
     cond = (q.bridge == bridge) & (q.iface == iface)
-    if table.get(cond) is None:
-        return
-    table.remove(cond)
-    mark_db_dirty()
+    removed = table.remove(cond)
+    if removed:
+        mark_db_dirty()
