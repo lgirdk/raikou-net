@@ -170,6 +170,7 @@ PRESEED
 
     # Virtual WiFi radios, if requested.
     if [ "${ENABLE_WIFI}" = "1" ]; then
+      echo "options mac80211_hwsim radios=4" > /etc/modprobe.d/mac80211_hwsim.conf
       modprobe mac80211_hwsim radios=4 || true
       echo mac80211_hwsim > /etc/modules-load.d/mac80211_hwsim.conf
     fi

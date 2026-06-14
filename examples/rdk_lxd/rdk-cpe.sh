@@ -66,6 +66,18 @@ setup_wifi() {
 
 cmd_up() {
     check_lxd
+    wait_for_bridges
+    setup_wifi
+
+    # After a VM reboot the container record persists in LXD's database (stopped).
+    # Re-init would fail; just start the existing container instead.
+    if lxc info "$CPE_NAME" >/dev/null 2>&1; then
+        log "$CPE_NAME already exists; starting"
+        lxc start "$CPE_NAME" || die "lxc start failed"
+        log "started $CPE_NAME (eth0->$WAN_BRIDGE, eth1->$LAN_BRIDGE)"
+        return
+    fi
+
     # Resolve the rootfs: an explicit RDK_IMAGE wins; otherwise pick the newest
     # *.tar.bz2 under images/ (the filename varies by tag, e.g. qemux86 vs bpi).
     if [ -z "$RDK_IMAGE" ]; then
@@ -74,8 +86,6 @@ cmd_up() {
     [ -n "$RDK_IMAGE" ] && [ -f "$RDK_IMAGE" ] || \
         die "no RDK rootfs (*.tar.bz2) found in $SCRIPT_DIR/images (set RDK_IMAGE to override)"
     log "using rootfs $RDK_IMAGE"
-    wait_for_bridges
-    setup_wifi
 
     # nvram volume
     lxc storage volume show default "$NVRAM_VOL" >/dev/null 2>&1 || \
