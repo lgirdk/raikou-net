@@ -1,9 +1,8 @@
 ---
-version: '3.9'
 services:
     router:
         container_name: router
-        image: 10.64.38.13:5000/raikou-router
+        image: ghcr.io/ketantewari/raikou/router:${VERSION}
         ports:
             - 4000:22
         environment:
@@ -18,15 +17,12 @@ services:
             CPE_VOICE_BUNDLE: 10.1.3.1/24,2001:dead:cafe:3::1/64
             MCAST_TARGET: vl_eth2
             DHCP_RELAY: eth1,172.25.1.20,2001:dead:beef:2::20
-
         privileged: true
         hostname: router
-        depends_on:
-            - ssh_service
 
     wan:
         container_name: wan
-        image: 10.64.38.13:5000/raikou-wan
+        image: ghcr.io/ketantewari/raikou/wan:${VERSION}
         ports:
             - 4001:22
             - 8001:8080
@@ -35,12 +31,10 @@ services:
             LEGACY: no # yamllint disable-line rule:truthy
         privileged: true
         hostname: wan
-        depends_on:
-            - ssh_service
 
     lan:
         container_name: lan
-        image: 10.64.38.13:5000/raikou-lan
+        image: ghcr.io/ketantewari/raikou/lan:${VERSION}
         ports:
             - 4002:22
             - 8002:8080
@@ -48,23 +42,19 @@ services:
             LEGACY: no # yamllint disable-line rule:truthy
         privileged: true
         hostname: lan
-        depends_on:
-            - ssh_service
 
     dhcp:
         container_name: dhcp
-        image: 10.64.38.13:5000/raikou-dhcp
+        image: ghcr.io/ketantewari/raikou/dhcp:${VERSION}
         ports:
             - 4003:22
         environment:
             LEGACY: no # yamllint disable-line rule:truthy
         privileged: true
         hostname: dhcp
-        depends_on:
-            - ssh_service
 
     mongo:
-        image: 10.64.38.13:5000/mongo:4.4
+        image: mongo:4.4
         restart: always
         privileged: true
         container_name: mongo
@@ -83,7 +73,7 @@ services:
     acs:
         depends_on:
             - mongo
-        image: 10.64.38.13:5000/raikou-acs
+        image: ghcr.io/ketantewari/raikou/acs:${VERSION}
         restart: always
         container_name: acs
         hostname: acs
@@ -108,7 +98,7 @@ services:
 
     raikou-net:
         container_name: orchestrator
-        image: 10.64.38.13:5000/raikou-net
+        image: ghcr.io/ketantewari/raikou/orchestrator:${VERSION}
         volumes:
             - /lib/modules:/lib/modules
             - /var/run/docker.sock:/var/run/docker.sock
@@ -124,8 +114,24 @@ services:
             - dhcp
             - acs
 
-    ssh_service:
-        image: 10.64.38.13:5000/raikou-ssh
+    gui:
+        container_name: gui
+        image: ghcr.io/ketantewari/raikou/gui:${VERSION}
+        ports:
+            - 9090:9090
+        environment:
+            - ORCHESTRATOR_URL=http://host.docker.internal:8080
+        extra_hosts:
+            - host.docker.internal:host-gateway
+        depends_on:
+            - raikou-net
+        restart: unless-stopped
+
+volumes:
+    data_db:
+    data_configdb:
+    opt_volume:
+
 
 networks:
     default:

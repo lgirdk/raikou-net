@@ -37,7 +37,7 @@ export REGISTRY
 # (images that get GHCR tags) is declared inside docker-bake.hcl as the
 # `push-set` group; this Makefile delegates to bake for `make push` and
 # doesn't need to duplicate the membership list.
-IMAGES := orchestrator ssh router wan lan dhcp ntp cpe acs sipcenter sipphone router-ethernet
+IMAGES := orchestrator ssh router wan lan dhcp ntp cpe acs sipcenter sipphone gui router-ethernet
 
 .PHONY: help lint build build-orchestrator build-components $(IMAGES) bump push clean smoke smoke-up smoke-down smoke-logs _smoke_guard _smoke_ship _smoke_compose_up _smoke_probe demo demo-down all
 
@@ -73,7 +73,7 @@ bump: ## Update VERSION file + all examples/*/.env (requires VERSION=...)
 	fi
 	@echo "$(VERSION)" > VERSION
 	@found=0; \
-	for envfile in examples/*/.env; do \
+	for envfile in examples/.env examples/*/.env; do \
 	  [ -f "$$envfile" ] || continue; \
 	  if grep -q '^VERSION=' "$$envfile"; then \
 	    sed -i.bak -E 's|^VERSION=.*|VERSION=$(VERSION)|' "$$envfile"; \

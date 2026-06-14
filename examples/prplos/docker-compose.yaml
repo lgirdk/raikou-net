@@ -4,7 +4,7 @@ services:
         build:
             context: ../../components/ssh/
             tags:
-                - ssh:v1.2.0
+                - ssh:${VERSION}
 
     router:
         container_name: router
@@ -20,7 +20,7 @@ services:
         build:
             context: ../../components/router
             tags:
-                - router:v1.2.0
+                - router:${VERSION}
         privileged: true
         hostname: router
         depends_on:
@@ -32,7 +32,7 @@ services:
         build:
             context: ../../components/cpe/prplos
             tags:
-                - cpe:v1.2.0
+                - cpe:${VERSION}
         ports:
             - 4004:22
         privileged: true
@@ -44,7 +44,7 @@ services:
         build:
             context: ../../components/wan
             tags:
-                - wan:v1.2.0
+                - wan:${VERSION}
         ports:
             - 4001:22
             - 8001:8080
@@ -61,7 +61,7 @@ services:
         build:
             context: ../../components/sip
             tags:
-                - sip:v1.2.0
+                - sipcenter:${VERSION}
         ports:
             - 4005:22
         environment:
@@ -79,7 +79,7 @@ services:
         build:
             context: ../../components/phone
             tags:
-                - phone:v1.2.0
+                - sipphone:${VERSION}
         ports:
             - 4006:22
         environment:
@@ -94,7 +94,7 @@ services:
         build:
             context: ../../components/phone
             tags:
-                - phone:v1.2.0
+                - sipphone:${VERSION}
         ports:
             - 4007:22
         environment:
@@ -109,7 +109,7 @@ services:
         build:
             context: ../../components/lan
             tags:
-                - lan:v1.2.0
+                - lan:${VERSION}
         ports:
             - 4002:22
             - 8002:8080
@@ -125,7 +125,7 @@ services:
         build:
             context: ../../components/dhcp
             tags:
-                - dhcp:v1.2.0
+                - dhcp:${VERSION}
         ports:
             - 4003:22
         environment:
@@ -161,7 +161,7 @@ services:
         build:
             context: ../../components/acs
             tags:
-                - acs:v1.2.0
+                - acs:${VERSION}
         restart: always
         container_name: acs
         hostname: acs
@@ -190,7 +190,7 @@ services:
         build:
             context: ../../
             tags:
-                - raikou-net:v1.2.0
+                - orchestrator:${VERSION}
         volumes:
             - /lib/modules:/lib/modules
             - /var/run/docker.sock:/var/run/docker.sock
@@ -216,6 +216,8 @@ services:
         container_name: gui
         build:
             context: ../../components/gui
+            tags:
+                - gui:${VERSION}
         ports:
             - 9090:9090
         environment:

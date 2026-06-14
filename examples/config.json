@@ -82,5 +82,5 @@
             }
         ]
     },
-    "vlan_translations": []
+    "veth_pairs": []
 }
