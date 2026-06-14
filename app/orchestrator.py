@@ -19,6 +19,7 @@ from app.ovs_lib import (
     check_sys_module,
     configure_container_vlan,
     create_bridge,
+    delete_bridge,
     get_interface_ip,
     veth_exists,
 )
@@ -32,10 +33,13 @@ from app.utils import (
     auto_allocate_ip,
     bootstrap_runtime_config,
     check_container_exists,
+    clear_bridge_all_ifaces,
     clear_bridge_host,
     clear_bridge_hosts,
     clear_bridge_iface,
+    clear_bridge_row,
     clear_container_iface,
+    clear_container_ifaces_for_bridge,
     get_all_container_ifaces,
     get_all_veth_ifaces,
     get_bridge,
@@ -404,6 +408,23 @@ def remove_veth_pair(prefix: str, bridge: str) -> None:
     clear_bridge_iface(bridge, veth0)
     clear_bridge_iface(bridge, veth1)
     _LOGGER.info("Removed veth pair %s <--> %s from bridge %s", veth0, veth1, bridge)
+
+
+def remove_bridge(bridge_name: str) -> None:
+    """Tear down a bridge and purge all associated DB state.
+
+    Deletes the OS bridge (OVS or Linux), then removes the bridges table row,
+    all bridge_ifaces rows, and all container_ifaces rows that reference this
+    bridge so the reconcile pass does not attempt to double-remove them.
+
+    :param bridge_name: The bridge name to remove.
+    :type bridge_name: str
+    """
+    delete_bridge(bridge_name)
+    clear_bridge_all_ifaces(bridge_name)
+    clear_container_ifaces_for_bridge(bridge_name)
+    clear_bridge_row(bridge_name)
+    _LOGGER.info("remove_bridge:: Bridge %s removed", bridge_name)
 
 
 def removal_pass(config: dict) -> None:

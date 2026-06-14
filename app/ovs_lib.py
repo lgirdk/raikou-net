@@ -252,6 +252,23 @@ def create_bridge(bridge_name: str) -> None:
     _LOGGER.info("Bridge %s created and brought up", bridge_name)
 
 
+def delete_bridge(bridge_name: str) -> None:
+    """Delete an OVS or Linux bridge.
+
+    Brings the bridge down first, then removes it. Tolerates the bridge
+    already being absent (both commands run with check=False).
+
+    :param bridge_name: Name of the bridge to delete.
+    :type bridge_name: str
+    """
+    run_command(f"ip link set {bridge_name} down", check=False)
+    if USE_LINUX_BRIDGE:
+        run_command(f"brctl delbr {bridge_name}", check=False)
+    else:
+        run_command(f"ovs-vsctl del-br {bridge_name}", check=False)
+    _LOGGER.info("Bridge %s deleted", bridge_name)
+
+
 def add_iface_to_ovs_bridge(bridge_name: str, iface_info: IfaceInfoDict) -> None:
     """Add a parent/native interface to an OVS bridge.
 

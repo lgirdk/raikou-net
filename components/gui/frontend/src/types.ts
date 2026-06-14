@@ -80,6 +80,7 @@ export interface VethNodeData {
 
 export type StagedOp =
   | { kind: 'add_bridge'; name: string; info: BridgeConfig }
+  | { kind: 'remove_bridge'; name: string }
   | { kind: 'add_container_iface'; containerName: string; iface: ContainerIface }
   | { kind: 'remove_container_iface'; containerName: string; bridge: string; iface: string }
   | { kind: 'remove_container'; containerName: string }

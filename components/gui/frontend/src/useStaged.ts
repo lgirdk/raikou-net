@@ -27,7 +27,10 @@ export function useStaged() {
 
     for (const op of ops) {
       try {
-        if (op.kind === 'add_bridge') {
+        if (op.kind === 'remove_bridge') {
+          const res = await fetch(`/api/bridge/${op.name}`, { method: 'DELETE' })
+          if (!res.ok) throw new Error(await res.text())
+        } else if (op.kind === 'add_bridge') {
           const res = await fetch('/api/add_bridge', {
             method: 'POST',
             headers: { 'content-type': 'application/json' },

@@ -143,7 +143,9 @@ export default function App() {
         <RightPanel
           selected={selected}
           onStageRemove={(node) => {
-            if (node.type === 'container') {
+            if (node.type === 'bridge') {
+              stageOp({ kind: 'remove_bridge', name: node.data.label })
+            } else if (node.type === 'container') {
               stageOp({ kind: 'remove_container', containerName: node.data.label })
             } else if (node.type === 'veth') {
               stageOp({ kind: 'remove_veth_pair', id: node.data.label })
