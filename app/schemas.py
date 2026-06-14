@@ -166,3 +166,18 @@ class VethPairInfo(BaseModel):
         description="Whether the veth pair is trunked ('yes' or 'no')",
         title="Trunk",
     )
+
+
+class RemoveContainerIface(BaseModel):
+    """Request body for removing a single container interface."""
+
+    bridge: str = Field(
+        ...,
+        description="Bridge the interface is attached to",
+        title="Bridge Name",
+    )
+    iface: str = Field(
+        ...,
+        description="Interface name to remove from the container",
+        title="Interface Name",
+    )
