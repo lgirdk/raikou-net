@@ -19,7 +19,9 @@ RUN apk add -u --no-cache \
     iproute2 \
     bridge-utils \
     py3-pip \
-    supervisor && \
+    supervisor \
+    jq \
+    vim && \
     \
     python3 -m venv .venv && \
     . ./.venv/bin/activate && \

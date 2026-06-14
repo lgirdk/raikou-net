@@ -175,8 +175,8 @@ def init_bridge(bridge_name: str, info: BridgeInfoDict) -> None:
 
         _apply_bridge_ip(bridge_name, family, ip_addr, new_range)
 
-    # Add parent interfaces
-    for parent_info in info.get("parents", []):
+    # Add parent interfaces (parents may be None when omitted from the API body)
+    for parent_info in info.get("parents") or []:
         _add_iface_to_bridge(bridge_name=bridge_name, parent_info=parent_info)
 
 
