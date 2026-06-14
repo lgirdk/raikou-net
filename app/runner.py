@@ -15,6 +15,7 @@ from fastapi import FastAPI
 
 from app.orchestrator import main
 from app.routers import bridge, container, veth
+from app.routers import config as config_router
 from app.utils import (
     EVENT_LOCK,
     clear_config_dirty,
@@ -107,6 +108,7 @@ app = FastAPI(lifespan=app_lifespan)
 app.include_router(bridge.router)
 app.include_router(container.router)
 app.include_router(veth.router)
+app.include_router(config_router.router)
 
 
 @app.get("/")
