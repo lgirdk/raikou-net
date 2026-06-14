@@ -75,10 +75,10 @@ async def remove_container_iface_api(
     :return: Success message.
     :rtype: dict
     """
-    if not has_container_iface(body.bridge, container_id, body.iface):
-        raise HTTPException(status_code=404, detail="Interface not found")
-
     async with EVENT_LOCK:
+        if not has_container_iface(body.bridge, container_id, body.iface):
+            raise HTTPException(status_code=404, detail="Interface not found")
+
         remove_container_iface(container_id, body.bridge, body.iface)
 
         config = get_config()
@@ -111,13 +111,15 @@ async def remove_container_api(container_id: str) -> dict:
     :return: Success message.
     :rtype: dict
     """
-    config = get_config()
-    db_rows = [r for r in get_all_container_ifaces() if r["container"] == container_id]
-    in_config = container_id in config.get("container", {})
-    if not db_rows and not in_config:
-        raise HTTPException(status_code=404, detail="Container not found")
-
     async with EVENT_LOCK:
+        config = get_config()
+        db_rows = [
+            r for r in get_all_container_ifaces() if r["container"] == container_id
+        ]
+        in_config = container_id in config.get("container", {})
+        if not db_rows and not in_config:
+            raise HTTPException(status_code=404, detail="Container not found")
+
         for row in db_rows:
             remove_container_iface(container_id, row["bridge"], row["iface"])
         config.get("container", {}).pop(container_id, None)
