@@ -20,16 +20,23 @@ export default function VethNode({ data: rawData, selected }: NodeProps) {
 
   return (
     <div className={cls}>
-      <Handle
-        type="target"
-        position={targetPos}
-        id={`veth:${data.label}`}
-      />
-      <div className={styles.vethName}>{data.label}</div>
+      <Handle type="target" position={targetPos} id={`veth:${data.label}`} />
+
+      <div className={styles.nodeHeader}>
+        <span className={styles.nodeIcon} style={{ color: 'var(--vt-bd)' }}>⇄</span>
+        <span className={styles.nodeName} style={{ color: 'var(--vt-name)' }}>{data.label}</span>
+        <span className={`${styles.nodePill} ${styles.pillVt}`}>veth</span>
+      </div>
+
       {data.map && (
-        <div className={styles.vethDetail}>
-          map <span>{data.map}</span>
-        </div>
+        <>
+          <div className={styles.ifaceDivider} />
+          <div className={styles.ifaceRows}>
+            <div className={styles.ifaceRow}>
+              map <span>{data.map}</span>
+            </div>
+          </div>
+        </>
       )}
     </div>
   )

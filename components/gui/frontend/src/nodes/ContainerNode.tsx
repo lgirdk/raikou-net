@@ -35,20 +35,26 @@ export default function ContainerNode({ data: rawData, selected }: NodeProps) {
     <div className={cls}>
       {renderHandles(leftIfaces,  Position.Left)}
       {renderHandles(rightIfaces, Position.Right)}
-      <div className={styles.containerName}>{data.label}</div>
-      <div className={styles.ifaceRow}>
-        {ifaces.map((i) => (
-          <div key={`${i.bridge}:${i.iface}`}>
-            {i.iface}
-            {i.ipaddress && (
-              <>
-                {' · '}
-                <span>{i.ipaddress}</span>
-              </>
-            )}
-          </div>
-        ))}
+
+      <div className={styles.nodeHeader}>
+        <span className={styles.nodeIcon} style={{ color: 'var(--ct-bd)' }}>◻</span>
+        <span className={styles.nodeName} style={{ color: 'var(--ct-name)' }}>{data.label}</span>
+        <span className={`${styles.nodePill} ${styles.pillCt}`}>container</span>
       </div>
+
+      {ifaces.length > 0 && (
+        <>
+          <div className={styles.ifaceDivider} />
+          <div className={styles.ifaceRows}>
+            {ifaces.map((i) => (
+              <div key={`${i.bridge}:${i.iface}`} className={styles.ifaceRow}>
+                {i.iface}
+                {i.ipaddress && <span>{i.ipaddress}</span>}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   )
 }

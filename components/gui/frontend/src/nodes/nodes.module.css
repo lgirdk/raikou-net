@@ -1,4 +1,4 @@
-/* Shared base */
+/* ── Shared base ─────────────────────────────────────────────────── */
 .node {
   border-radius: 8px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -6,7 +6,34 @@
 }
 .node:active { cursor: grabbing; }
 
-/* BridgeNode */
+/* ── Shared header row (icon + name + pill) ─────────────────────── */
+.nodeHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  min-height: 38px;
+}
+.nodeIcon   { font-size: 16px; flex-shrink: 0; }
+.nodeName   { font-size: 12px; font-weight: 700; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nodePill   {
+  flex-shrink: 0;
+  font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+  padding: 2px 5px; border-radius: 3px;
+}
+.pillBr { color: var(--br-bd); background: var(--br-pill); border: 1px solid var(--br-bd); }
+.pillCt { color: var(--ct-bd); background: var(--ch-add-bg); border: 1px solid var(--ct-bd); }
+.pillVt { color: var(--vt-bd); background: var(--vt-bg);    border: 1px solid var(--vt-bd); }
+
+/* Divider between header and iface rows */
+.ifaceDivider { height: 1px; background: var(--border); margin: 0 10px; }
+
+/* Iface detail rows */
+.ifaceRows { padding: 5px 10px 7px; display: flex; flex-direction: column; gap: 2px; }
+.ifaceRow  { font-size: 10px; color: var(--text2); line-height: 1.55; display: flex; gap: 5px; }
+.ifaceRow span { color: var(--text3); }
+
+/* ── BridgeNode ──────────────────────────────────────────────────── */
 .bridge {
   background: var(--br-bg);
   border: 2px solid var(--br-bd);
@@ -19,40 +46,31 @@
   box-shadow: 0 0 16px var(--br-glow);
 }
 .bridgeIcon { font-size: 18px; color: var(--br-bd); flex-shrink: 0; }
-.bridgeName { font-size: 13px; font-weight: 700; color: var(--br-name); }
+.bridgeName { font-size: 13px; font-weight: 700; color: var(--br-name); flex: 1; }
 .bridgePill {
-  margin-left: auto;
+  flex-shrink: 0;
   font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
   color: var(--br-bd); background: var(--br-pill);
-  padding: 2px 6px; border-radius: 3px;
+  padding: 2px 6px; border-radius: 3px; border: 1px solid var(--br-bd);
 }
 
-/* ContainerNode */
+/* ── ContainerNode ───────────────────────────────────────────────── */
 .container {
   background: var(--ct-bg);
   border: 2px solid var(--ct-bd);
-  width: 148px;
-  padding: 8px 10px;
+  width: 200px;
   box-shadow: 0 0 12px var(--ct-glow);
 }
-.containerName { font-size: 12px; font-weight: 700; color: var(--ct-name); margin-bottom: 4px; }
-.ifaceRow { font-size: 10px; color: var(--text2); line-height: 1.65; }
-.ifaceRow span { color: var(--text3); }
 
-/* VethNode */
+/* ── VethNode ────────────────────────────────────────────────────── */
 .veth {
   background: var(--vt-bg);
   border: 2px dashed var(--vt-bd);
-  width: 148px;
-  padding: 8px 10px;
+  width: 180px;
+  box-shadow: 0 0 10px var(--vt-glow);
 }
-.vethName { font-size: 12px; font-weight: 700; color: var(--vt-name); margin-bottom: 3px; }
-.vethDetail { font-size: 10px; color: var(--text2); }
-.vethDetail span { color: var(--vt-name); }
 
-/* Pending states */
+/* ── State modifiers ─────────────────────────────────────────────── */
 .pendingAdd    { border-style: dashed; opacity: 0.7; }
 .pendingRemove { outline: 2px solid #f85149; outline-offset: 2px; }
-
-/* Selected (gold border) */
 .selected { border-color: var(--sel-bd) !important; box-shadow: 0 0 16px var(--sel-glow) !important; }

@@ -43,7 +43,7 @@ export default function BridgeNode({ data: rawData, selected }: NodeProps) {
       {renderHandles(rightConns, Position.Right)}
       <span className={styles.bridgeIcon}>⬡</span>
       <span className={styles.bridgeName}>{data.label}</span>
-      <span className={styles.bridgePill}>bridge</span>
+      <span className={`${styles.bridgePill} ${styles.pillBr}`}>bridge</span>
     </div>
   )
 }
