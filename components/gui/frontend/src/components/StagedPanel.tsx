@@ -4,6 +4,7 @@ import styles from './StagedPanel.module.css'
 interface StagedPanelProps {
   ops: StagedOp[]
   onRemove: (index: number) => void
+  onEdit: (index: number) => void
   onClear: () => void
   applyResult: { succeeded: number; failed: number; error?: string; failedOp?: StagedOp } | null
 }
@@ -23,7 +24,7 @@ function kindClass(kind: StagedOp['kind']): string {
   return kind.startsWith('remove') ? styles.kindRemove : styles.kindAdd
 }
 
-export default function StagedPanel({ ops, onRemove, onClear, applyResult }: StagedPanelProps) {
+export default function StagedPanel({ ops, onRemove, onEdit, onClear, applyResult }: StagedPanelProps) {
   return (
     <aside className={styles.panel}>
       <div className={styles.header}>
@@ -46,6 +47,9 @@ export default function StagedPanel({ ops, onRemove, onClear, applyResult }: Sta
               {op.kind.startsWith('remove') ? '−' : '+'}
             </span>
             <span className={styles.label}>{opLabel(op)}</span>
+            <button className={styles.editBtn} onClick={() => onEdit(i)} title="Edit">
+              ✎
+            </button>
             <button className={styles.removeBtn} onClick={() => onRemove(i)} title="Remove">
               ×
             </button>

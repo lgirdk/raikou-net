@@ -16,6 +16,10 @@ export function useStaged() {
 
   const clearOps = useCallback(() => setOps([]), [])
 
+  const editOp = useCallback((index: number, op: StagedOp) => {
+    setOps((prev) => prev.map((o, i) => (i === index ? op : o)))
+  }, [])
+
   const applyOps = useCallback(async () => {
     setApplying(true)
     setApplyResult(null)
@@ -81,5 +85,5 @@ export function useStaged() {
     setApplying(false)
   }, [ops])
 
-  return { ops, stageOp, unstageOp, clearOps, applyOps, applying, applyResult }
+  return { ops, stageOp, unstageOp, editOp, clearOps, applyOps, applying, applyResult }
 }

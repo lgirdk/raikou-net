@@ -102,7 +102,7 @@ class BridgeInfo(BaseModel):
         title="IPv6 Range",
     )
     parents: list[IfaceInfo] | None = Field(
-        ...,
+        None,
         description="List of parent interfaces to be attached to the bridge",
         title="Parent Interfaces",
     )

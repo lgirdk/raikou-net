@@ -54,6 +54,13 @@
   margin-left: 4px;
 }
 
+.title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text3);
+  margin-left: 10px;
+}
+
 .spacer { flex: 1; }
 
 .pendingLbl {

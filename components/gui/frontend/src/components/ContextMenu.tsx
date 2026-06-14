@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import styles from './ContextMenu.module.css'
 
 interface ContextMenuItem {
@@ -14,34 +14,29 @@ interface ContextMenuProps {
 }
 
 export default function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
-  const ref = useRef<HTMLUListElement>(null)
-
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
-    }
     const keyHandler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
     }
-    window.addEventListener('mousedown', handler)
     window.addEventListener('keydown', keyHandler)
-    return () => {
-      window.removeEventListener('mousedown', handler)
-      window.removeEventListener('keydown', keyHandler)
-    }
+    return () => window.removeEventListener('keydown', keyHandler)
   }, [onClose])
 
   return (
-    <ul ref={ref} className={styles.menu} style={{ left: x, top: y }}>
-      {items.map((item) => (
-        <li
-          key={item.label}
-          className={styles.item}
-          onClick={() => { item.onClick(); onClose() }}
-        >
-          {item.label}
-        </li>
-      ))}
-    </ul>
+    <>
+      {/* Transparent full-screen backdrop — any click outside closes the menu */}
+      <div className={styles.backdrop} onClick={onClose} />
+      <ul className={styles.menu} style={{ left: x, top: y }}>
+        {items.map((item) => (
+          <li
+            key={item.label}
+            className={styles.item}
+            onClick={() => { item.onClick(); onClose() }}
+          >
+            {item.label}
+          </li>
+        ))}
+      </ul>
+    </>
   )
 }

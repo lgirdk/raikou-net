@@ -69,12 +69,15 @@ function Field({
 interface AddBridgeModalProps {
   onClose: () => void
   onStage: (op: StagedOp) => void
+  // Pre-fill when editing an existing staged op.
+  initial?: { name: string; iprange?: string; ip6range?: string }
 }
 
-export function AddBridgeModal({ onClose, onStage }: AddBridgeModalProps) {
-  const [name, setName] = useState('')
-  const [iprange, setIprange] = useState('')
-  const [ip6range, setIp6range] = useState('')
+export function AddBridgeModal({ onClose, onStage, initial }: AddBridgeModalProps) {
+  const [name, setName] = useState(initial?.name ?? '')
+  const [iprange, setIprange] = useState(initial?.iprange ?? '')
+  const [ip6range, setIp6range] = useState(initial?.ip6range ?? '')
+  const isEdit = initial !== undefined
 
   function submit() {
     if (!name.trim()) return
@@ -90,7 +93,12 @@ export function AddBridgeModal({ onClose, onStage }: AddBridgeModalProps) {
   }
 
   return (
-    <Modal title="Add Bridge" onClose={onClose} onSubmit={submit}>
+    <Modal
+      title={isEdit ? 'Edit Bridge' : 'Add Bridge'}
+      onClose={onClose}
+      onSubmit={submit}
+      submitLabel={isEdit ? 'Update' : 'Stage'}
+    >
       <Field label="Bridge name *" value={name} onChange={setName} placeholder="e.g. lan-bridge" />
       <Field
         label="IPv4 range"
@@ -110,20 +118,29 @@ interface AddContainerIfaceModalProps {
   onClose: () => void
   onStage: (op: StagedOp) => void
   config: OrchestratorConfig | null
+  initial?: {
+    containerName: string
+    bridge: string
+    iface: string
+    vlan?: string
+    ipaddress?: string
+    gateway?: string
+  }
 }
 
 export function AddContainerIfaceModal({
-  onClose, onStage, config,
+  onClose, onStage, config, initial,
 }: AddContainerIfaceModalProps) {
   const bridges = config ? Object.keys(config.bridge) : []
   const containers = config ? Object.keys(config.container) : []
+  const isEdit = initial !== undefined
 
-  const [containerName, setContainerName] = useState('')
-  const [bridge, setBridge] = useState(bridges[0] ?? '')
-  const [iface, setIface] = useState('')
-  const [vlan, setVlan] = useState('')
-  const [ipaddress, setIpaddress] = useState('')
-  const [gateway, setGateway] = useState('')
+  const [containerName, setContainerName] = useState(initial?.containerName ?? '')
+  const [bridge, setBridge] = useState(initial?.bridge ?? bridges[0] ?? '')
+  const [iface, setIface] = useState(initial?.iface ?? '')
+  const [vlan, setVlan] = useState(initial?.vlan ?? '')
+  const [ipaddress, setIpaddress] = useState(initial?.ipaddress ?? '')
+  const [gateway, setGateway] = useState(initial?.gateway ?? '')
 
   function submit() {
     if (!containerName.trim() || !bridge || !iface.trim()) return
@@ -142,7 +159,12 @@ export function AddContainerIfaceModal({
   }
 
   return (
-    <Modal title="Add Container Interface" onClose={onClose} onSubmit={submit}>
+    <Modal
+      title={isEdit ? 'Edit Container Interface' : 'Add Container Interface'}
+      onClose={onClose}
+      onSubmit={submit}
+      submitLabel={isEdit ? 'Update' : 'Stage'}
+    >
       <div className={styles.field}>
         <label className={styles.fieldLabel}>Container *</label>
         <input
@@ -180,13 +202,16 @@ interface AddVethPairModalProps {
   onClose: () => void
   onStage: (op: StagedOp) => void
   config: OrchestratorConfig | null
+  initial?: { id: string; on: string; map?: string }
 }
 
-export function AddVethPairModal({ onClose, onStage, config }: AddVethPairModalProps) {
+export function AddVethPairModal({ onClose, onStage, config, initial }: AddVethPairModalProps) {
   const bridges = config ? Object.keys(config.bridge) : []
-  const [id, setId] = useState('')
-  const [on, setOn] = useState(bridges[0] ?? '')
-  const [map, setMap] = useState('')
+  const isEdit = initial !== undefined
+
+  const [id, setId] = useState(initial?.id ?? '')
+  const [on, setOn] = useState(initial?.on ?? bridges[0] ?? '')
+  const [map, setMap] = useState(initial?.map ?? '')
 
   function submit() {
     if (!id.trim() || !on) return
@@ -200,7 +225,12 @@ export function AddVethPairModal({ onClose, onStage, config }: AddVethPairModalP
   }
 
   return (
-    <Modal title="Add Veth Pair" onClose={onClose} onSubmit={submit}>
+    <Modal
+      title={isEdit ? 'Edit Veth Pair' : 'Add Veth Pair'}
+      onClose={onClose}
+      onSubmit={submit}
+      submitLabel={isEdit ? 'Update' : 'Stage'}
+    >
       <Field
         label="Pair ID * (≤8 chars)"
         value={id}

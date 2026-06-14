@@ -40,6 +40,12 @@
 
 .label { flex: 1; color: var(--text3); font-size: 10.5px; word-break: break-word; }
 
+.editBtn {
+  flex-shrink: 0; background: none; border: none; color: var(--text2);
+  font-size: 12px; cursor: pointer; line-height: 1; padding: 0 2px;
+}
+.editBtn:hover { color: var(--sel-bd); }
+
 .removeBtn {
   flex-shrink: 0; background: none; border: none; color: var(--text2);
   font-size: 15px; cursor: pointer; line-height: 1; padding: 0 2px;
