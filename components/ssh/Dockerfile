@@ -41,6 +41,6 @@ EXPOSE 22/tcp
 COPY --from=build-stage /root/bind.so /usr/lib/
 COPY isolate_docker_iface /usr/bin/
 
-ENV TIMEOUT 60
+ENV TIMEOUT=60
 
 CMD ["/usr/sbin/sshd", "-D"]

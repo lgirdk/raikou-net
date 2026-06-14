@@ -4,7 +4,7 @@ FROM ssh:v2.0.0
 ENV LEGACY="no"
 # Install packages required for the following repositories.
 ENV DEBIAN_FRONTEND=noninteractive
-ENV PATH "/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin"
+ENV PATH="/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin"
 
 # Adding ENV to allow generation of FRR configurations
 # Support enabled only for RIP, SMCROUTE and ZEBRA

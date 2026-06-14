@@ -52,7 +52,7 @@ COPY ./resources/kea-dhcp6.conf /etc/kea.dist/
 COPY ./resources/keactrl.conf /etc/kea.dist/
 COPY ./resources/keactrl /usr/sbin/
 
-ENV PATH "/sbin:/bin:/usr/sbin:/usr/bin"
+ENV PATH="/sbin:/bin:/usr/sbin:/usr/bin"
 ENV LEGACY="no"
 ENV FAST_API=no
 

@@ -42,7 +42,7 @@ COPY ./config/supervisord.conf /etc/supervisord.conf
 COPY ./util/ovs-docker /usr/bin/ovs-docker
 COPY ./util/lxbr-docker /usr/bin/lxbr-docker
 
-ENV PYTHONPATH="${PYTHONPATH}:/root/app/"
+ENV PYTHONPATH="/root/app/"
 ENV PATH="/root/.venv/bin/:${PATH}"
 ENV DEBUG=no
 ENV USE_LINUX_BRIDGE=false

@@ -37,7 +37,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && sed -i 's/.*PermitTunnel.*/PermitTunnel yes/' /etc/ssh/sshd_config
 
 ENV LEGACY="no"
-ENV TIMEOUT 60
+ENV TIMEOUT=60
 
 COPY --from=bind-build-stage /root/bind.so /usr/lib/
 
