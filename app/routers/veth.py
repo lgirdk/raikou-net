@@ -4,7 +4,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Body, HTTPException
 
-from app.orchestrator import create_veth_pair
+from app.orchestrator import create_veth_pair, remove_veth_pair
 from app.schemas import VethPairInfo
 from app.utils import (
     EVENT_LOCK,
@@ -66,5 +66,30 @@ async def add_veth_pair_api(
             mark_config_dirty()
     except ValueError as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+    return {"status": "success", "veth_pair_id": veth_pair_id}
+
+
+@router.delete("/veth/{veth_pair_id}")
+async def remove_veth_pair_api(veth_pair_id: str) -> dict:
+    """Remove a veth pair from its bridge and delete both ends.
+
+    :param veth_pair_id: The veth pair prefix (<=8 chars).
+    :type veth_pair_id: str
+    :raises HTTPException: 404 if the veth pair is not in config.
+    :return: Success message.
+    :rtype: dict
+    """
+    config = get_config()
+    if veth_pair_id not in config.get("veth_pairs", {}):
+        raise HTTPException(status_code=404, detail="Veth pair not found")
+
+    bridge: str = config["veth_pairs"][veth_pair_id]["on"]
+
+    async with EVENT_LOCK:
+        remove_veth_pair(veth_pair_id, bridge)
+        del config["veth_pairs"][veth_pair_id]
+        save_runtime_config()
+        mark_config_dirty()
 
     return {"status": "success", "veth_pair_id": veth_pair_id}
