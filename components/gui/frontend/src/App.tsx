@@ -12,7 +12,7 @@ import {
 } from './components/Modals'
 import { useConfig } from './useConfig'
 import { useStaged } from './useStaged'
-import type { SelectedNode } from './types'
+import type { SelectedNode, StagedOp } from './types'
 import styles from './App.module.css'
 
 type ModalKind = 'bridge' | 'container' | 'veth' | null
@@ -21,10 +21,11 @@ export default function App() {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
   const [selected, setSelected] = useState<SelectedNode | null>(null)
   const [modal, setModal] = useState<ModalKind>(null)
+  const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
 
   const { nodes, edges, config, loading, error, refresh } = useConfig()
-  const { ops, stageOp, unstageOp, clearOps, applyOps, applying, applyResult } = useStaged()
+  const { ops, stageOp, unstageOp, editOp, clearOps, applyOps, applying, applyResult } = useStaged()
 
   function toggleTheme() {
     setTheme((t) => {
@@ -40,10 +41,33 @@ export default function App() {
   }, [])
 
   const contextMenuItems = [
-    { label: '+ Add bridge',    onClick: () => setModal('bridge')    },
-    { label: '+ Add iface',     onClick: () => setModal('container') },
-    { label: '+ Add veth pair', onClick: () => setModal('veth')      },
+    { label: '+ Add bridge',    onClick: () => { setEditingIndex(null); setModal('bridge')    } },
+    { label: '+ Add iface',     onClick: () => { setEditingIndex(null); setModal('container') } },
+    { label: '+ Add veth pair', onClick: () => { setEditingIndex(null); setModal('veth')      } },
   ]
+
+  // Opens the matching modal pre-filled with the op at `index`.
+  function handleEditOp(index: number) {
+    const op = ops[index]
+    setEditingIndex(index)
+    if (op.kind === 'add_bridge') setModal('bridge')
+    else if (op.kind === 'add_container_iface') setModal('container')
+    else if (op.kind === 'add_veth_pair') setModal('veth')
+  }
+
+  function handleModalClose() {
+    setModal(null)
+    setEditingIndex(null)
+  }
+
+  // When editing, replace the existing op; otherwise append a new one.
+  function handleModalStage(op: StagedOp) {
+    if (editingIndex !== null) {
+      editOp(editingIndex, op)
+    } else {
+      stageOp(op)
+    }
+  }
 
   const containerCount = config ? Object.keys(config.container).length : 0
   const bridgeCount    = config ? Object.keys(config.bridge).length : 0
@@ -53,6 +77,28 @@ export default function App() {
     await applyOps()
     void refresh()
   }
+
+  // Build initial values for edit modals from the staged op.
+  const editingOp = editingIndex !== null ? ops[editingIndex] : undefined
+
+  const bridgeInitial = editingOp?.kind === 'add_bridge'
+    ? { name: editingOp.name, iprange: editingOp.info.iprange, ip6range: editingOp.info.ip6range }
+    : undefined
+
+  const containerInitial = editingOp?.kind === 'add_container_iface'
+    ? {
+        containerName: editingOp.containerName,
+        bridge: editingOp.iface.bridge,
+        iface: editingOp.iface.iface,
+        vlan: editingOp.iface.vlan,
+        ipaddress: editingOp.iface.ipaddress,
+        gateway: editingOp.iface.gateway,
+      }
+    : undefined
+
+  const vethInitial = editingOp?.kind === 'add_veth_pair'
+    ? { id: editingOp.id, on: editingOp.on, map: editingOp.map }
+    : undefined
 
   return (
     <div className={styles.app}>
@@ -68,21 +114,31 @@ export default function App() {
         <StagedPanel
           ops={ops}
           onRemove={unstageOp}
+          onEdit={handleEditOp}
           onClear={clearOps}
           applyResult={applyResult}
         />
 
-        {loading && <div className={styles.loading}>Loading topology…</div>}
-        {error   && <div className={styles.error}>Error: {error}</div>}
-        {!loading && !error && (
-          <div style={{ flex: 1, position: 'relative' }} onContextMenu={handlePaneContextMenu}>
-            <Canvas
-              initialNodes={nodes}
-              initialEdges={edges}
-              onSelectNode={setSelected}
-            />
+        <div className={styles.canvasPane}>
+          <div className={styles.canvasTab}>
+            <div className={styles.canvasTabItem}>
+              <span className={styles.canvasTabDot} />
+              Canvas
+            </div>
           </div>
-        )}
+
+          {loading && <div className={styles.loading}>Loading topology…</div>}
+          {error   && <div className={styles.error}>Error: {error}</div>}
+          {!loading && !error && (
+            <div style={{ flex: 1, position: 'relative' }} onContextMenu={handlePaneContextMenu}>
+              <Canvas
+                initialNodes={nodes}
+                initialEdges={edges}
+                onSelectNode={setSelected}
+              />
+            </div>
+          )}
+        </div>
 
         <RightPanel
           selected={selected}
@@ -92,7 +148,6 @@ export default function App() {
             } else if (node.type === 'veth') {
               stageOp({ kind: 'remove_veth_pair', id: node.data.label })
             }
-            // bridge removal not wired in Phase E
           }}
         />
       </div>
@@ -114,13 +169,13 @@ export default function App() {
       )}
 
       {modal === 'bridge' && (
-        <AddBridgeModal onClose={() => setModal(null)} onStage={stageOp} />
+        <AddBridgeModal onClose={handleModalClose} onStage={handleModalStage} initial={bridgeInitial} />
       )}
       {modal === 'container' && (
-        <AddContainerIfaceModal onClose={() => setModal(null)} onStage={stageOp} config={config} />
+        <AddContainerIfaceModal onClose={handleModalClose} onStage={handleModalStage} config={config} initial={containerInitial} />
       )}
       {modal === 'veth' && (
-        <AddVethPairModal onClose={() => setModal(null)} onStage={stageOp} config={config} />
+        <AddVethPairModal onClose={handleModalClose} onStage={handleModalStage} config={config} initial={vethInitial} />
       )}
     </div>
   )

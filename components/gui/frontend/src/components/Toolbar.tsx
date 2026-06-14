@@ -18,6 +18,7 @@ export default function Toolbar({
   return (
     <header className={styles.toolbar}>
       <img className={styles.logo} src="/raikou-banner.jpg" alt="Raikou-Net" />
+      <span className={styles.title}>Raikou Dashboard</span>
       <div className={styles.spacer} />
       {stagedCount > 0 && !applying && (
         <span className={styles.pendingLbl}>{stagedCount} staged</span>
