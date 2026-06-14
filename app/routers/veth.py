@@ -59,8 +59,14 @@ async def add_veth_pair_api(
             )
 
             config = get_config()
-            cc_config = config["veth_pairs"].setdefault(veth_pair_id, {})
-            cc_config.update(veth_pair_info.model_dump())
+            entry = {"id": veth_pair_id, **veth_pair_info.model_dump()}
+            veth_pairs = config.setdefault("veth_pairs", [])
+            for i, existing in enumerate(veth_pairs):
+                if existing["id"] == veth_pair_id:
+                    veth_pairs[i] = entry
+                    break
+            else:
+                veth_pairs.append(entry)
 
             save_runtime_config()
             mark_config_dirty()
@@ -80,15 +86,15 @@ async def remove_veth_pair_api(veth_pair_id: str) -> dict:
     :return: Success message.
     :rtype: dict
     """
-    config = get_config()
-    if veth_pair_id not in config.get("veth_pairs", {}):
-        raise HTTPException(status_code=404, detail="Veth pair not found")
-
-    bridge: str = config["veth_pairs"][veth_pair_id]["on"]
-
     async with EVENT_LOCK:
+        config = get_config()
+        veth_pairs = config.get("veth_pairs", [])
+        entry = next((e for e in veth_pairs if e["id"] == veth_pair_id), None)
+        if entry is None:
+            raise HTTPException(status_code=404, detail="Veth pair not found")
+        bridge: str = entry["on"]
         remove_veth_pair(veth_pair_id, bridge)
-        del config["veth_pairs"][veth_pair_id]
+        config["veth_pairs"] = [e for e in veth_pairs if e["id"] != veth_pair_id]
         save_runtime_config()
         mark_config_dirty()
 

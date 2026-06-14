@@ -442,10 +442,11 @@ def removal_pass(config: dict) -> None:
                 config.get("container", {}).pop(container, None)
                 save_runtime_config()
 
+    configured_ids = {e["id"] for e in config.get("veth_pairs", [])}
     for row in get_all_veth_ifaces():
         prefix: str = row["iface"].removeprefix("v0_")
         bridge: str = row["bridge"]
-        if prefix not in config.get("veth_pairs", {}):
+        if prefix not in configured_ids:
             _LOGGER.info(
                 "Removal pass: removing stale veth pair %s from bridge %s",
                 prefix,
@@ -484,12 +485,12 @@ async def main() -> None:
                     for info in iface_info:
                         add_iface_to_container(container, info)
 
-                for prefix, translation in config.get("veth_pairs", {}).items():
+                for entry in config.get("veth_pairs", []):
                     create_veth_pair(
-                        on_bridge=translation["on"],
-                        prefix=prefix,
-                        vlan_map=translation.get("map", ":"),
-                        trunk=translation.get("trunk", "no"),
+                        on_bridge=entry["on"],
+                        prefix=entry["id"],
+                        vlan_map=entry.get("map", ":"),
+                        trunk=entry.get("trunk", "no"),
                     )
 
                 removal_pass(config)
