@@ -154,6 +154,22 @@ def get_last_success_ts() -> float:
 _config_cache: dict[str, object] | None = None
 
 
+def _normalize_veth_pairs(config: dict) -> None:
+    """Convert legacy dict-form veth_pairs to list form in-place.
+
+    Old form: ``{"eth3": {"on": "bridgeA", "map": "100:"}}``
+    New form: ``[{"id": "eth3", "on": "bridgeA", "map": "100:"}]``
+
+    No-op when veth_pairs is already a list or absent.
+
+    :param config: Config dict to normalize (mutated in place).
+    :type config: dict
+    """
+    vp = config.get("veth_pairs")
+    if isinstance(vp, dict):
+        config["veth_pairs"] = [{"id": k, **v} for k, v in vp.items()]
+
+
 def bootstrap_runtime_config() -> dict[str, object]:
     """Seed `_config_cache` from disk on orchestrator startup.
 
@@ -170,10 +186,12 @@ def bootstrap_runtime_config() -> dict[str, object]:
         _LOGGER.info("Loading runtime config from %s", RUNTIME_CONFIG_PATH)
         with RUNTIME_CONFIG_PATH.open(encoding="utf-8") as fp:
             _config_cache = json.load(fp)
+        _normalize_veth_pairs(_config_cache)
     else:
         _LOGGER.info("Seeding %s from %s", RUNTIME_CONFIG_PATH, ROOT_CONFIG_PATH)
         with ROOT_CONFIG_PATH.open(encoding="utf-8") as fp:
             _config_cache = json.load(fp)
+        _normalize_veth_pairs(_config_cache)
         atomic_write_json(RUNTIME_CONFIG_PATH, _config_cache)
     _state["last_external_mtime"] = ROOT_CONFIG_PATH.stat().st_mtime
     return _config_cache
@@ -221,6 +239,7 @@ def ingress_external_config() -> bool:
         )
         return False
 
+    _normalize_veth_pairs(external)
     _LOGGER.info("External config mtime advanced; merging")
     deep_merge(_config_cache, external)
     atomic_write_json(RUNTIME_CONFIG_PATH, _config_cache)
@@ -491,6 +510,20 @@ class ContainerInfoDict(TypedDict, total=False):
     gateway: str  # Optional, IPv4 gateway address
     gateway6: str  # Optional, IPv6 gateway address
     macaddress: str  # Optional, MAC address for the interface
+
+
+class VethPairItemDict(TypedDict):
+    """Schema for a veth pair list entry — required fields."""
+
+    id: str  # ≤8-char prefix; names v0_<id> / v1_<id> interfaces
+    on: str  # Bridge to attach v0_ end
+
+
+class VethPairItemOptDict(VethPairItemDict, total=False):
+    """Schema for a veth pair list entry — optional fields."""
+
+    map: str  # VLAN translation e.g. "100:200"
+    trunk: str  # "yes" or "no"
 
 
 # Publicly accessible function to provide logger
