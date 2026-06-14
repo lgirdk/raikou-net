@@ -6,6 +6,7 @@ Responsibilities:
 """
 
 import os
+from pathlib import Path
 
 import httpx
 from fastapi import FastAPI, Request
@@ -22,7 +23,12 @@ app = FastAPI(docs_url=None, redoc_url=None)
     methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
 )
 async def proxy(path: str, request: Request) -> Response:
-    """Forward any /api/* request verbatim to the orchestrator."""
+    """Forward any /api/* request verbatim to the orchestrator.
+
+    :param path: The URL path segment after /api/.
+    :param request: The incoming FastAPI request object.
+    :returns: The orchestrator's response forwarded to the caller.
+    """
     body = await request.body()
     headers: dict[str, str] = {}
     if ct := request.headers.get("content-type"):
@@ -48,6 +54,6 @@ async def proxy(path: str, request: Request) -> Response:
 
 # Static SPA — only mounted when the build output exists.
 # During development the Vite dev server handles static files directly.
-_static = os.path.join(os.path.dirname(__file__), "static")
-if os.path.isdir(_static):
+_static = Path(__file__).parent / "static"
+if _static.is_dir():
     app.mount("/", StaticFiles(directory=_static, html=True), name="static")

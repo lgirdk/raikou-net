@@ -212,6 +212,20 @@ services:
             - lan-phone
             - wan-phone
 
+    gui:
+        container_name: gui
+        build:
+            context: ../../components/gui
+        ports:
+            - 9090:9090
+        environment:
+            - ORCHESTRATOR_URL=http://host.docker.internal:8080
+        extra_hosts:
+            - host.docker.internal:host-gateway
+        depends_on:
+            - raikou-net
+        restart: unless-stopped
+
 volumes:
     data_db:
     data_configdb:

@@ -55,7 +55,7 @@ export default function Canvas({ initialNodes, initialEdges, onSelectNode }: Can
   )
 
   const handleNodeDragStart = useCallback(
-    (_: React.MouseEvent, node: Node) => selectFromNode(node),
+    (_: MouseEvent | TouchEvent, node: Node) => selectFromNode(node),
     [selectFromNode],
   )
 

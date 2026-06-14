@@ -106,6 +106,12 @@ target "sipphone" {
   tags     = ghcr_tags("sipphone")
 }
 
+target "gui" {
+  inherits = ["_base"]
+  context  = "components/gui"
+  tags     = ghcr_tags("gui")
+}
+
 # ---- Build-only (no GHCR push) ----
 target "router-ethernet" {
   inherits = ["_base"]
@@ -124,6 +130,7 @@ group "components" {
     "ssh",
     "router", "wan", "lan", "dhcp", "ntp",
     "cpe", "acs", "sipcenter", "sipphone",
+    "gui",
     "router-ethernet",
   ]
 }
@@ -135,5 +142,6 @@ group "push-set" {
     "orchestrator",
     "router", "wan", "lan", "dhcp", "ntp",
     "cpe", "acs", "sipcenter", "sipphone",
+    "gui",
   ]
 }
