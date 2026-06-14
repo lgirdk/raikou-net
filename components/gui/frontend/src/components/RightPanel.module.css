@@ -1,0 +1,53 @@
+.panel {
+  width: 254px;
+  background: var(--bg2);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow-y: auto;
+}
+
+.hint {
+  padding: 14px;
+  font-size: 11px;
+  color: var(--text2);
+}
+
+.section { padding: 12px; border-bottom: 1px solid var(--bg3); }
+
+.title {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.7px; color: var(--text2); margin-bottom: 9px;
+}
+
+.nameRow { display: flex; align-items: center; gap: 6px; margin-bottom: 9px; }
+.nodeName { font-size: 14px; font-weight: 700; color: var(--ct-name); }
+
+.tag {
+  font-size: 9px; font-weight: 700; padding: 1px 5px;
+  border-radius: 3px; text-transform: uppercase;
+}
+.tag-bridge    { background: var(--br-pill); color: var(--br-bd); border: 1px solid var(--br-bd); }
+.tag-container { background: var(--ch-add-bg); color: var(--ct-bd); border: 1px solid var(--ct-bd); }
+.tag-veth      { background: var(--vt-bg); color: var(--vt-bd); border: 1px solid var(--vt-bd); }
+
+.rows { display: flex; flex-direction: column; gap: 0; }
+.ifaceBlock { padding: 6px 0; border-bottom: 1px dashed var(--border); }
+.ifaceBlock:last-child { border: none; }
+
+.row {
+  display: flex; justify-content: space-between;
+  margin-bottom: 5px; font-size: 11px;
+}
+.label { color: var(--text2); }
+.value { color: var(--text3); font-family: monospace; font-size: 10.5px; }
+.valueBlue { color: var(--br-name); }
+.valueSmall { font-size: 9.5px; }
+
+.rmBtn {
+  width: 100%; padding: 6px; margin-top: 8px;
+  border: 1px solid var(--rm-bd); background: var(--rm-bg);
+  color: var(--rm-fg); border-radius: 5px; font-size: 11px; cursor: pointer;
+  text-align: center;
+}

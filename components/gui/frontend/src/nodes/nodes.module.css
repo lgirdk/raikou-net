@@ -1,0 +1,58 @@
+/* Shared base */
+.node {
+  border-radius: 8px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  cursor: grab;
+}
+.node:active { cursor: grabbing; }
+
+/* BridgeNode */
+.bridge {
+  background: var(--br-bg);
+  border: 2px solid var(--br-bd);
+  width: 220px;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 8px;
+  box-shadow: 0 0 16px var(--br-glow);
+}
+.bridgeIcon { font-size: 18px; color: var(--br-bd); flex-shrink: 0; }
+.bridgeName { font-size: 13px; font-weight: 700; color: var(--br-name); }
+.bridgePill {
+  margin-left: auto;
+  font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+  color: var(--br-bd); background: var(--br-pill);
+  padding: 2px 6px; border-radius: 3px;
+}
+
+/* ContainerNode */
+.container {
+  background: var(--ct-bg);
+  border: 2px solid var(--ct-bd);
+  width: 148px;
+  padding: 8px 10px;
+  box-shadow: 0 0 12px var(--ct-glow);
+}
+.containerName { font-size: 12px; font-weight: 700; color: var(--ct-name); margin-bottom: 4px; }
+.ifaceRow { font-size: 10px; color: var(--text2); line-height: 1.65; }
+.ifaceRow span { color: var(--text3); }
+
+/* VethNode */
+.veth {
+  background: var(--vt-bg);
+  border: 2px dashed var(--vt-bd);
+  width: 148px;
+  padding: 8px 10px;
+}
+.vethName { font-size: 12px; font-weight: 700; color: var(--vt-name); margin-bottom: 3px; }
+.vethDetail { font-size: 10px; color: var(--text2); }
+.vethDetail span { color: var(--vt-name); }
+
+/* Pending states */
+.pendingAdd    { border-style: dashed; opacity: 0.7; }
+.pendingRemove { outline: 2px solid #f85149; outline-offset: 2px; }
+
+/* Selected (gold border) */
+.selected { border-color: var(--sel-bd) !important; box-shadow: 0 0 16px var(--sel-glow) !important; }

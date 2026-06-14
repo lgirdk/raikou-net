@@ -1,0 +1,77 @@
+// Mirror of the orchestrator's config.json schema (app/utils.py TypedDicts).
+
+export interface IfaceInfo {
+  iface: string
+  vlan?: string
+  trunk?: string
+  native?: string
+}
+
+export interface BridgeConfig {
+  parents?: IfaceInfo[]
+  iprange?: string
+  ip6range?: string
+  ipaddress?: string
+  ip6address?: string
+}
+
+export interface ContainerIface {
+  bridge: string
+  iface: string
+  vlan?: string
+  trunk?: string
+  ipaddress?: string
+  ip6address?: string
+  gateway?: string
+  gateway6?: string
+  macaddress?: string
+}
+
+export interface VethPair {
+  id: string
+  on: string
+  map?: string
+  trunk?: 'yes' | 'no'
+}
+
+export interface OrchestratorConfig {
+  bridge: Record<string, BridgeConfig>
+  container: Record<string, ContainerIface[]>
+  veth_pairs: VethPair[]
+}
+
+// Data payloads for each React Flow node type.
+// These go into the `data` prop of each node object.
+
+export interface BridgeNodeData {
+  label: string
+  pending?: 'add' | 'remove'
+  [key: string]: unknown   // React Flow requires this index signature
+}
+
+export interface ContainerNodeData {
+  label: string
+  ifaces: Array<{
+    bridge: string
+    iface: string
+    ipaddress?: string
+    ip6address?: string
+    gateway?: string
+  }>
+  pending?: 'add' | 'remove'
+  [key: string]: unknown
+}
+
+export interface VethNodeData {
+  label: string
+  on: string
+  map?: string
+  pending?: 'add' | 'remove'
+  [key: string]: unknown
+}
+
+// Unified type used by the right panel and context menu.
+export type SelectedNode =
+  | { type: 'bridge'; id: string; data: BridgeNodeData }
+  | { type: 'container'; id: string; data: ContainerNodeData }
+  | { type: 'veth'; id: string; data: VethNodeData }
