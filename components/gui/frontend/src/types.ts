@@ -76,6 +76,23 @@ export interface VethNodeData {
   [key: string]: unknown
 }
 
+// ── Staged operations ────────────────────────────────────────────────────────
+
+export type StagedOp =
+  | { kind: 'add_bridge'; name: string; info: BridgeConfig }
+  | { kind: 'add_container_iface'; containerName: string; iface: ContainerIface }
+  | { kind: 'remove_container_iface'; containerName: string; bridge: string; iface: string }
+  | { kind: 'remove_container'; containerName: string }
+  | { kind: 'add_veth_pair'; id: string; on: string; map?: string }
+  | { kind: 'remove_veth_pair'; id: string }
+
+export interface ApplyResult {
+  succeeded: number
+  failed: number
+  failedOp?: StagedOp
+  error?: string
+}
+
 // Unified type used by the right panel and context menu.
 export type SelectedNode =
   | { type: 'bridge'; id: string; data: BridgeNodeData }

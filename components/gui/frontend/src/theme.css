@@ -23,6 +23,7 @@
   --vt-bg:    #130f22;
   --vt-bd:    #bc8cff;
   --vt-name:  #d2a8ff;
+  --vt-glow:  rgba(188, 140, 255, 0.20);
 
   --sel-bd:   #f0b429;
   --sel-glow: rgba(240, 180, 41, 0.22);
@@ -69,6 +70,7 @@
   --vt-bg:    #f3eeff;
   --vt-bd:    #8250df;
   --vt-name:  #6639ba;
+  --vt-glow:  rgba(130, 80, 223, 0.15);
 
   --sel-bd:   #d4a72c;
   --sel-glow: rgba(212, 167, 44, 0.2);

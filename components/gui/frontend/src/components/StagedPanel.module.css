@@ -1,0 +1,54 @@
+.panel {
+  width: 240px;
+  background: var(--bg2);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow-y: auto;
+  font-size: 11px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.title { font-weight: 700; font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text2); }
+.clearBtn {
+  font-size: 10px; color: var(--rm-fg); background: none;
+  border: 1px solid var(--rm-bd); border-radius: 3px; padding: 1px 6px; cursor: pointer;
+}
+
+.empty { color: var(--text2); padding: 12px; line-height: 1.5; }
+.list { list-style: none; margin: 0; padding: 0; }
+
+.item {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 10px; border-bottom: 1px solid var(--bg3);
+}
+
+.kindBadge {
+  flex-shrink: 0; width: 16px; height: 16px; border-radius: 3px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; line-height: 1;
+}
+.kindAdd    { background: var(--ch-add-bg); color: #3fb950; border: 1px solid #3fb950; }
+.kindRemove { background: var(--ch-rm-bg);  color: #f85149; border: 1px solid #f85149; }
+
+.label { flex: 1; color: var(--text3); font-size: 10.5px; word-break: break-word; }
+
+.removeBtn {
+  flex-shrink: 0; background: none; border: none; color: var(--text2);
+  font-size: 15px; cursor: pointer; line-height: 1; padding: 0 2px;
+}
+.removeBtn:hover { color: #f85149; }
+
+.okBox, .errBox {
+  margin: 8px; padding: 8px 10px; border-radius: 5px; font-size: 10.5px;
+}
+.okBox  { background: rgba(63, 185, 80, 0.12); border: 1px solid #3fb950; color: #3fb950; }
+.errBox { background: rgba(248, 81, 73, 0.12);  border: 1px solid #f85149; color: #f85149; }
+.errDetail { margin-top: 4px; font-family: monospace; font-size: 9.5px; word-break: break-all; }
