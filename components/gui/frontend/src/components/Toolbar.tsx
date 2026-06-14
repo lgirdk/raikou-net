@@ -23,41 +23,42 @@ export default function Toolbar({
 }: ToolbarProps) {
   return (
     <header className={styles.toolbar}>
-      <div className={styles.topBar}>
-        <img className={styles.logo} src="/raikou-banner.jpg" alt="Raikou-Net" />
-        <span className={styles.title}>Raikou Dashboard</span>
-        <div className={styles.spacer} />
-        {stagedCount > 0 && !applying && (
-          <span className={styles.pendingLbl}>{stagedCount} staged</span>
-        )}
-        <button
-          className={`${styles.btn} ${styles.applyBtn}`}
-          onClick={onApply}
-          disabled={stagedCount === 0 || applying}
-        >
-          {applying ? 'Applying…' : 'Apply'}
-          {stagedCount > 0 && !applying && (
-            <span className={styles.badge}>{stagedCount}</span>
-          )}
-        </button>
-        <div className={styles.divider} />
-        <button className={styles.themeBtn} onClick={onToggleTheme} title="Toggle light/dark">
-          {theme === 'dark' ? '☀️' : '🌙'}
-        </button>
-      </div>
+      <img className={styles.logo} src="/raikou-banner.jpg" alt="Raikou-Net" />
+      <span className={styles.title}>Raikou Dashboard</span>
 
-      <nav className={styles.tabBar}>
-        {TABS.map((tab) => (
-          <button
-            key={tab}
-            className={`${styles.tab} ${activeTab === tab ? styles.tabActive : ''}`}
-            onClick={() => onTabChange?.(tab)}
-          >
-            <span className={styles.tabDot} />
-            {tab}
-          </button>
-        ))}
-      </nav>
+      <div className={styles.titleSep} />
+
+      {TABS.map((tab) => (
+        <button
+          key={tab}
+          className={`${styles.tab} ${activeTab === tab ? styles.tabActive : ''}`}
+          onClick={() => onTabChange?.(tab)}
+          title={`${tab} — click to reload`}
+        >
+          <span className={styles.tabDot} />
+          {tab}
+        </button>
+      ))}
+
+      <div className={styles.spacer} />
+
+      {stagedCount > 0 && !applying && (
+        <span className={styles.pendingLbl}>{stagedCount} staged</span>
+      )}
+      <button
+        className={`${styles.btn} ${styles.applyBtn}`}
+        onClick={onApply}
+        disabled={stagedCount === 0 || applying}
+      >
+        {applying ? 'Applying…' : 'Apply'}
+        {stagedCount > 0 && !applying && (
+          <span className={styles.badge}>{stagedCount}</span>
+        )}
+      </button>
+      <div className={styles.divider} />
+      <button className={styles.themeBtn} onClick={onToggleTheme} title="Toggle light/dark">
+        {theme === 'dark' ? '☀️' : '🌙'}
+      </button>
     </header>
   )
 }
