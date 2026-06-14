@@ -7,6 +7,7 @@ Provides a logger provider function for use in other modules.
 from __future__ import annotations
 
 import asyncio
+import errno
 import hashlib
 import ipaddress
 import json
@@ -65,7 +66,16 @@ def atomic_write_json(path: Path, data: object) -> None:
             json.dump(data, fp)
             fp.flush()
             os.fsync(fp.fileno())
-        Path(tmp_name).replace(path)
+        try:
+            Path(tmp_name).replace(path)
+        except OSError as exc:
+            if exc.errno != errno.EBUSY:
+                raise
+            # Docker bind-mounted file: os.rename can't swap the inode.
+            # Fall back to in-place overwrite of the same inode.
+            content = Path(tmp_name).read_text(encoding="utf-8")
+            path.write_text(content, encoding="utf-8")
+            Path(tmp_name).unlink(missing_ok=True)
     except Exception:
         Path(tmp_name).unlink(missing_ok=True)
         raise
