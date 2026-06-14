@@ -57,7 +57,8 @@ def atomic_write_json(path: Path, data: object) -> None:
     :type path: Path
     :param data: JSON-serialisable payload.
     :type data: object
-    :raises Exception: Re-raises any exception from the write/replace operation after cleaning up the temp file.
+    :raises OSError: Re-raised from the replace step if errno is not EBUSY.
+    :raises Exception: Re-raises any other exception after removing the temp file.
     """
     parent = path.parent
     fd, tmp_name = tempfile.mkstemp(prefix=path.name + ".", dir=parent, text=True)
