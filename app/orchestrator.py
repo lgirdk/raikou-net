@@ -36,6 +36,8 @@ from app.utils import (
     clear_bridge_hosts,
     clear_bridge_iface,
     clear_container_iface,
+    get_all_container_ifaces,
+    get_all_veth_ifaces,
     get_bridge,
     get_bridge_hosts,
     get_config,
@@ -45,6 +47,7 @@ from app.utils import (
     mark_tick_success,
     maybe_flush_state,
     run_command,
+    save_runtime_config,
     set_bridge_host,
     upsert_bridge,
     upsert_container_iface,
@@ -403,6 +406,57 @@ def remove_veth_pair(prefix: str, bridge: str) -> None:
     _LOGGER.info("Removed veth pair %s <--> %s from bridge %s", veth0, veth1, bridge)
 
 
+def removal_pass(config: dict) -> None:
+    """Remove interfaces and veth pairs no longer present in desired config.
+
+    Called at the end of each reconcile tick after all add passes. Compares
+    the ``container_ifaces`` and ``bridge_ifaces`` DB tables against the
+    in-memory config; tears down anything tracked in the DB but absent from
+    config. Errors are caught per-row so one failure does not block others.
+
+    :param config: The live in-memory config dict from ``get_config()``.
+    :type config: dict
+    """
+    for row in get_all_container_ifaces():
+        bridge: str = row["bridge"]
+        container: str = row["container"]
+        iface: str = row["iface"]
+        desired = config.get("container", {}).get(container, [])
+        if not any(
+            e.get("bridge") == bridge and e.get("iface") == iface for e in desired
+        ):
+            _LOGGER.info(
+                "Removal pass: removing stale iface %s/%s from container %s",
+                bridge,
+                iface,
+                container,
+            )
+            try:
+                remove_container_iface(container, bridge, iface)
+            except (CalledProcessError, ValueError, IndexError, KeyError):
+                _LOGGER.exception(
+                    "Failed to remove iface %s/%s/%s", bridge, container, iface
+                )
+                continue
+            if not config.get("container", {}).get(container):
+                config.get("container", {}).pop(container, None)
+                save_runtime_config()
+
+    for row in get_all_veth_ifaces():
+        prefix: str = row["iface"].removeprefix("v0_")
+        bridge: str = row["bridge"]
+        if prefix not in config.get("veth_pairs", {}):
+            _LOGGER.info(
+                "Removal pass: removing stale veth pair %s from bridge %s",
+                prefix,
+                bridge,
+            )
+            try:
+                remove_veth_pair(prefix, bridge)
+            except (CalledProcessError, ValueError, IndexError, KeyError):
+                _LOGGER.exception("Failed to remove veth pair %s/%s", prefix, bridge)
+
+
 async def main() -> None:
     """Reconcile loop. Owns no supervision state — runner handles crash policy.
 
@@ -438,6 +492,7 @@ async def main() -> None:
                         trunk=translation.get("trunk", "no"),
                     )
 
+                removal_pass(config)
                 maybe_flush_state()
 
             mark_tick_success()
