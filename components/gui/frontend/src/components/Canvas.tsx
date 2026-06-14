@@ -34,8 +34,8 @@ export default function Canvas({ initialNodes, initialEdges, onSelectNode }: Can
   const [nodes, , onNodesChange] = useNodesState(initialNodes)
   const [edges, , onEdgesChange] = useEdgesState(initialEdges)
 
-  const handleNodeClick = useCallback(
-    (_: React.MouseEvent, node: Node) => {
+  const selectFromNode = useCallback(
+    (node: Node) => {
       const [typeStr, ...rest] = node.id.split(':')
       const id = rest.join(':')
       if (typeStr === 'bridge') {
@@ -49,6 +49,16 @@ export default function Canvas({ initialNodes, initialEdges, onSelectNode }: Can
     [onSelectNode],
   )
 
+  const handleNodeClick = useCallback(
+    (_: React.MouseEvent, node: Node) => selectFromNode(node),
+    [selectFromNode],
+  )
+
+  const handleNodeDragStart = useCallback(
+    (_: React.MouseEvent, node: Node) => selectFromNode(node),
+    [selectFromNode],
+  )
+
   return (
     <ReactFlow
       nodes={nodes}
@@ -57,6 +67,7 @@ export default function Canvas({ initialNodes, initialEdges, onSelectNode }: Can
       onEdgesChange={onEdgesChange}
       nodeTypes={nodeTypes}
       onNodeClick={handleNodeClick}
+      onNodeDragStart={handleNodeDragStart}
       onPaneClick={() => onSelectNode(null)}
       fitView
     >

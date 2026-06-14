@@ -23,6 +23,7 @@ export default function App() {
   const [modal, setModal] = useState<ModalKind>(null)
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
+  const [userCollapsedStaged, setUserCollapsedStaged] = useState(false)
 
   const { nodes, edges, config, loading, error, refresh } = useConfig()
   const { ops, stageOp, unstageOp, editOp, clearOps, applyOps, applying, applyResult } = useStaged()
@@ -60,12 +61,18 @@ export default function App() {
     setEditingIndex(null)
   }
 
+  // Wrap stageOp to also auto-reopen the staged panel if user had collapsed it.
+  function handleStageOp(op: StagedOp) {
+    stageOp(op)
+    setUserCollapsedStaged(false)
+  }
+
   // When editing, replace the existing op; otherwise append a new one.
   function handleModalStage(op: StagedOp) {
     if (editingIndex !== null) {
       editOp(editingIndex, op)
     } else {
-      stageOp(op)
+      handleStageOp(op)
     }
   }
 
@@ -113,21 +120,15 @@ export default function App() {
       <div className={styles.main}>
         <StagedPanel
           ops={ops}
-          collapsed={ops.length === 0 && applyResult === null}
+          collapsed={(ops.length === 0 && applyResult === null) || userCollapsedStaged}
           onRemove={unstageOp}
           onEdit={handleEditOp}
           onClear={clearOps}
+          onManualCollapse={() => setUserCollapsedStaged(true)}
           applyResult={applyResult}
         />
 
         <div className={styles.canvasPane}>
-          <div className={styles.canvasTab}>
-            <div className={styles.canvasTabItem}>
-              <span className={styles.canvasTabDot} />
-              Canvas
-            </div>
-          </div>
-
           {loading && <div className={styles.loading}>Loading topology…</div>}
           {error   && <div className={styles.error}>Error: {error}</div>}
           {!loading && !error && (
@@ -145,11 +146,11 @@ export default function App() {
           selected={selected}
           onStageRemove={(node) => {
             if (node.type === 'bridge') {
-              stageOp({ kind: 'remove_bridge', name: node.data.label })
+              handleStageOp({ kind: 'remove_bridge', name: node.data.label })
             } else if (node.type === 'container') {
-              stageOp({ kind: 'remove_container', containerName: node.data.label })
+              handleStageOp({ kind: 'remove_container', containerName: node.data.label })
             } else if (node.type === 'veth') {
-              stageOp({ kind: 'remove_veth_pair', id: node.data.label })
+              handleStageOp({ kind: 'remove_veth_pair', id: node.data.label })
             }
             setSelected(null)   // clear right panel immediately after staging removal
           }}

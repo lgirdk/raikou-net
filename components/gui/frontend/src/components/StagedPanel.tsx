@@ -7,6 +7,7 @@ interface StagedPanelProps {
   onRemove: (index: number) => void
   onEdit: (index: number) => void
   onClear: () => void
+  onManualCollapse?: () => void
   applyResult: { succeeded: number; failed: number; error?: string; failedOp?: StagedOp } | null
 }
 
@@ -27,16 +28,23 @@ function kindClass(kind: StagedOp['kind']): string {
 }
 
 export default function StagedPanel({
-  ops, collapsed, onRemove, onEdit, onClear, applyResult,
+  ops, collapsed, onRemove, onEdit, onClear, onManualCollapse, applyResult,
 }: StagedPanelProps) {
   return (
     <aside className={[styles.panel, collapsed ? styles.panelCollapsed : ''].join(' ')}>
       <div className={styles.inner}>
         <div className={styles.header}>
           <span className={styles.title}>Staged Changes</span>
-          {ops.length > 0 && (
-            <button className={styles.clearBtn} onClick={onClear}>Clear</button>
-          )}
+          <div className={styles.headerActions}>
+            {ops.length > 0 && (
+              <button className={styles.clearBtn} onClick={onClear}>Clear</button>
+            )}
+            <button
+              className={styles.collapseBtn}
+              onClick={onManualCollapse}
+              title="Hide panel"
+            >‹</button>
+          </div>
         </div>
 
         <ul className={styles.list}>
