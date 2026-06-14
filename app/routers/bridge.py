@@ -1,10 +1,10 @@
-"""API router to add bridge."""
+"""API router for bridge create/delete."""
 
 from typing import Annotated, cast
 
 from fastapi import APIRouter, Body, HTTPException
 
-from app.orchestrator import init_bridge
+from app.orchestrator import init_bridge, remove_bridge
 from app.schemas import BridgeInfo
 from app.utils import (
     EVENT_LOCK,
@@ -60,5 +60,33 @@ async def init_bridge_api(
             mark_config_dirty()
     except ValueError as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+    return {"status": "success", "bridge_name": bridge_name}
+
+
+@router.delete("/bridge/{bridge_name}")
+async def remove_bridge_api(bridge_name: str) -> dict:
+    """Remove an OVS/Linux bridge and all associated state.
+
+    Deletes the bridge from the host, purges its DB rows, and drops it from
+    the in-memory config so the reconcile loop does not recreate it.
+
+    :param bridge_name: The bridge name to remove.
+    :type bridge_name: str
+    :raises HTTPException: 404 if the bridge is not in the config.
+    :return: Success message.
+    :rtype: dict
+    """
+    async with EVENT_LOCK:
+        config = get_config()
+        if bridge_name not in config.get("bridge", {}):
+            raise HTTPException(status_code=404, detail="Bridge not found")
+        remove_bridge(bridge_name)
+        config.get("bridge", {}).pop(bridge_name, None)
+        # Remove any container iface entries referencing this bridge from config
+        for ifaces in config.get("container", {}).values():
+            ifaces[:] = [i for i in ifaces if i.get("bridge") != bridge_name]
+        save_runtime_config()
+        mark_config_dirty()
 
     return {"status": "success", "bridge_name": bridge_name}

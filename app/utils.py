@@ -936,3 +936,41 @@ def clear_bridge_iface(bridge: str, iface: str) -> None:
     removed = table.remove(cond)
     if removed:
         mark_db_dirty()
+
+
+def clear_bridge_all_ifaces(bridge: str) -> None:
+    """Remove all `bridge_ifaces` rows for `bridge`.
+
+    Used when tearing down a bridge entirely.
+
+    :param bridge: The bridge name.
+    :type bridge: str
+    """
+    removed = get_tinydb().table("bridge_ifaces").remove(Query().bridge == bridge)
+    if removed:
+        mark_db_dirty()
+
+
+def clear_bridge_row(name: str) -> None:
+    """Delete the `bridges` table row for `name`. No-op if absent.
+
+    :param name: The bridge name.
+    :type name: str
+    """
+    removed = get_tinydb().table("bridges").remove(Query().name == name)
+    if removed:
+        mark_db_dirty()
+
+
+def clear_container_ifaces_for_bridge(bridge: str) -> None:
+    """Remove all `container_ifaces` rows whose bridge matches `bridge`.
+
+    Used when tearing down a bridge — detached container references must be
+    purged from the DB or the removal_pass would try to double-remove them.
+
+    :param bridge: The bridge name.
+    :type bridge: str
+    """
+    removed = get_tinydb().table("container_ifaces").remove(Query().bridge == bridge)
+    if removed:
+        mark_db_dirty()

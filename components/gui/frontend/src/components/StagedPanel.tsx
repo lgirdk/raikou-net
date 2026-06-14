@@ -12,6 +12,7 @@ interface StagedPanelProps {
 function opLabel(op: StagedOp): string {
   switch (op.kind) {
     case 'add_bridge':            return `Add bridge "${op.name}"`
+    case 'remove_bridge':         return `Remove bridge "${op.name}"`
     case 'add_container_iface':   return `Add iface to "${op.containerName}"`
     case 'add_veth_pair':         return `Add veth "${op.id}" on "${op.on}"`
     case 'remove_container_iface': return `Remove "${op.iface}" from "${op.containerName}"`
