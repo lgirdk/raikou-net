@@ -3,7 +3,7 @@
   background: var(--bg2);
   border-bottom: 1px solid var(--border);
   display: flex;
-  align-items: center;
+  align-items: stretch;  /* lets tabs span full height for bottom-border trick */
   padding: 0 14px;
   gap: 8px;
   flex-shrink: 0;
@@ -14,6 +14,7 @@
   width: auto;
   object-fit: contain;
   border-radius: 5px;
+  align-self: center;
 }
 
 .title {
@@ -23,6 +24,7 @@
   letter-spacing: -0.3px;
   margin-left: 8px;
   white-space: nowrap;
+  align-self: center;
 }
 
 /* Thin separator between title and tabs */
@@ -32,42 +34,45 @@
   background: var(--border);
   margin: 0 4px;
   flex-shrink: 0;
+  align-self: center;
 }
 
-/* Inline tab — no bottom-border; pill highlight when active */
+/* Proper page tab — stretches full toolbar height so border-bottom
+   sits flush with the toolbar's bottom edge */
 .tab {
+  align-self: stretch;
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 4px 10px;
+  padding: 0 14px;
   font-size: 12px;
   font-weight: 600;
   color: var(--text2);
   background: none;
   border: none;
-  border-radius: 6px;
+  border-bottom: 2px solid transparent;
+  border-top: 2px solid transparent; /* optical balance */
   cursor: pointer;
-  transition: background 0.14s, color 0.14s;
+  transition: color 0.14s, border-bottom-color 0.14s, background 0.14s;
   white-space: nowrap;
 }
-.tab:hover { background: var(--bg3); color: var(--text3); }
-.tabActive  { background: var(--bg3); color: var(--text3); }
-
-.tabDot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--br-bd);
-  flex-shrink: 0;
+.tab:hover {
+  color: var(--text3);
+  border-bottom-color: rgba(88, 166, 255, 0.45);
+  background: rgba(88, 166, 255, 0.05);
+}
+.tabActive {
+  color: var(--text3);
+  border-bottom-color: var(--br-bd);
 }
 
-.spacer { flex: 1; }
+.spacer { flex: 1; align-self: center; }
 
 .divider {
   width: 1px;
   height: 22px;
   background: var(--border);
   margin: 0 2px;
+  align-self: center;
 }
 
 .btn {
@@ -79,6 +84,7 @@
   font-size: 12px;
   cursor: pointer;
   transition: filter 0.15s;
+  align-self: center;
 }
 .btn:hover { filter: brightness(1.1); }
 .btn:disabled { opacity: 0.4; cursor: default; }
@@ -104,6 +110,7 @@
 .pendingLbl {
   font-size: 11px;
   color: var(--text2);
+  align-self: center;
 }
 
 .themeBtn {
@@ -118,5 +125,6 @@
   align-items: center;
   justify-content: center;
   transition: filter 0.15s;
+  align-self: center;
 }
 .themeBtn:hover { filter: brightness(1.1); }
