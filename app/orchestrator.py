@@ -34,6 +34,8 @@ from app.utils import (
     check_container_exists,
     clear_bridge_host,
     clear_bridge_hosts,
+    clear_bridge_iface,
+    clear_container_iface,
     get_bridge,
     get_bridge_hosts,
     get_config,
@@ -331,6 +333,74 @@ def add_iface_to_container(  # noqa: C901
         container_name,
     )
     configure_container_vlan(container_name, info)
+
+
+def remove_container_iface(container_name: str, bridge: str, iface: str) -> None:
+    """Detach a container interface and clean up IP allocations and DB tracking.
+
+    Runs del-port, frees IP allocations for both address families, and removes
+    the DB tracking row. If del-port fails (e.g. container already gone),
+    cleanup still proceeds.
+
+    :param container_name: The container to detach from.
+    :type container_name: str
+    :param bridge: The bridge the interface is on.
+    :type bridge: str
+    :param iface: The interface name inside the container.
+    :type iface: str
+    """
+    util = "ovs-docker" if not USE_LINUX_BRIDGE else "lxbr-docker"
+    try:
+        run_command(f"{util} del-port {bridge} {iface} {container_name}")
+    except CalledProcessError:
+        _LOGGER.warning(
+            "del-port %s %s %s failed — container may be gone; proceeding with cleanup",
+            bridge,
+            iface,
+            container_name,
+        )
+    clear_bridge_host(bridge, container_name, "ip")
+    clear_bridge_host(bridge, container_name, "ip6")
+    clear_container_iface(bridge, container_name, iface)
+    _LOGGER.info(
+        "Removed interface %s from container %s on bridge %s",
+        iface,
+        container_name,
+        bridge,
+    )
+
+
+def remove_veth_pair(prefix: str, bridge: str) -> None:
+    """Remove a veth pair from its bridge and delete both ends.
+
+    Detaches v0_{prefix} from the bridge, deletes the veth pair kernel objects,
+    and clears both DB rows. If the veth is already gone, cleanup still proceeds.
+
+    :param prefix: The veth pair prefix (<=8 chars). Manages v0_{prefix} / v1_{prefix}.
+    :type prefix: str
+    :param bridge: The bridge v0_{prefix} is attached to.
+    :type bridge: str
+    """
+    veth0 = f"v0_{prefix}"
+    veth1 = f"v1_{prefix}"
+    try:
+        if USE_LINUX_BRIDGE:
+            run_command(f"brctl delif {bridge} {veth0}")
+        else:
+            run_command(f"ovs-vsctl del-port {bridge} {veth0}")
+    except CalledProcessError:
+        _LOGGER.warning(
+            "Bridge del-port for %s on %s failed — may already be detached; proceeding",
+            veth0,
+            bridge,
+        )
+    try:
+        run_command(f"ip link delete {veth0}")
+    except CalledProcessError:
+        _LOGGER.warning("ip link delete %s failed — may already be gone", veth0)
+    clear_bridge_iface(bridge, veth0)
+    clear_bridge_iface(bridge, veth1)
+    _LOGGER.info("Removed veth pair %s <--> %s from bridge %s", veth0, veth1, bridge)
 
 
 async def main() -> None:
