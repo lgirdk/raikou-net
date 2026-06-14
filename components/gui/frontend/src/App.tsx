@@ -23,7 +23,7 @@ export default function App() {
 
   const containerCount = config ? Object.keys(config.container).length : 0
   const bridgeCount    = config ? Object.keys(config.bridge).length : 0
-  const vethCount      = config ? config.veth_pairs.length : 0
+  const vethCount      = config ? (config.veth_pairs?.length ?? 0) : 0
 
   return (
     <div className={styles.app}>

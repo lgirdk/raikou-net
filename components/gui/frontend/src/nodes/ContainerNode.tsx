@@ -5,6 +5,7 @@ import styles from './nodes.module.css'
 
 export default function ContainerNode({ data: rawData, selected }: NodeProps) {
   const data = rawData as ContainerNodeData
+  const ifaces = data.ifaces ?? []
 
   const cls = [
     styles.node,
@@ -16,12 +17,27 @@ export default function ContainerNode({ data: rawData, selected }: NodeProps) {
     .filter(Boolean)
     .join(' ')
 
+  const leftIfaces  = ifaces.filter((i) => i.side === 'left')
+  const rightIfaces = ifaces.filter((i) => i.side === 'right')
+
+  const renderHandles = (group: typeof ifaces, position: Position) =>
+    group.map((iface, i) => (
+      <Handle
+        key={`${data.label}:${iface.iface}`}
+        type="target"
+        position={position}
+        id={`${data.label}:${iface.iface}`}
+        style={{ top: `${((i + 1) / (group.length + 1)) * 100}%` }}
+      />
+    ))
+
   return (
     <div className={cls}>
-      <Handle type="target" position={Position.Left} />
+      {renderHandles(leftIfaces,  Position.Left)}
+      {renderHandles(rightIfaces, Position.Right)}
       <div className={styles.containerName}>{data.label}</div>
       <div className={styles.ifaceRow}>
-        {data.ifaces.map((i) => (
+        {ifaces.map((i) => (
           <div key={`${i.bridge}:${i.iface}`}>
             {i.iface}
             {i.ipaddress && (
@@ -33,7 +49,6 @@ export default function ContainerNode({ data: rawData, selected }: NodeProps) {
           </div>
         ))}
       </div>
-      <Handle type="source" position={Position.Right} />
     </div>
   )
 }

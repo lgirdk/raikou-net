@@ -16,16 +16,21 @@ export default function VethNode({ data: rawData, selected }: NodeProps) {
     .filter(Boolean)
     .join(' ')
 
+  const targetPos = data.targetSide === 'right' ? Position.Right : Position.Left
+
   return (
     <div className={cls}>
-      <Handle type="target" position={Position.Left} />
+      <Handle
+        type="target"
+        position={targetPos}
+        id={`veth:${data.label}`}
+      />
       <div className={styles.vethName}>{data.label}</div>
       {data.map && (
         <div className={styles.vethDetail}>
           map <span>{data.map}</span>
         </div>
       )}
-      <Handle type="source" position={Position.Right} />
     </div>
   )
 }
