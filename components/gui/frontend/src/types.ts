@@ -45,8 +45,12 @@ export interface OrchestratorConfig {
 
 export interface BridgeNodeData {
   label: string
+  connections: Array<{
+    handleId: string
+    side: 'left' | 'right'   // which side of the bridge this handle lives on
+  }>
   pending?: 'add' | 'remove'
-  [key: string]: unknown   // React Flow requires this index signature
+  [key: string]: unknown
 }
 
 export interface ContainerNodeData {
@@ -54,6 +58,7 @@ export interface ContainerNodeData {
   ifaces: Array<{
     bridge: string
     iface: string
+    side: 'left' | 'right'   // which side of the container this handle lives on
     ipaddress?: string
     ip6address?: string
     gateway?: string
@@ -66,6 +71,7 @@ export interface VethNodeData {
   label: string
   on: string
   map?: string
+  targetSide: 'left' | 'right'   // which side the bridge handle is on
   pending?: 'add' | 'remove'
   [key: string]: unknown
 }

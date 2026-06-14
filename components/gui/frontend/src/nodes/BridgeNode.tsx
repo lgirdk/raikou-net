@@ -3,10 +3,15 @@ import type { NodeProps } from '@xyflow/react'
 import type { BridgeNodeData } from '../types'
 import styles from './nodes.module.css'
 
-// NodeProps (untyped) is the v12-safe signature for custom nodes registered
-// via nodeTypes. We cast `data` to our known payload type inside the component.
 export default function BridgeNode({ data: rawData, selected }: NodeProps) {
   const data = rawData as BridgeNodeData
+  const conns = data.connections ?? []
+
+  const leftConns  = conns.filter((c) => c.side === 'left')
+  const rightConns = conns.filter((c) => c.side === 'right')
+
+  // Height is driven by whichever side has more connections.
+  const nodeHeight = Math.max(46, Math.max(leftConns.length, rightConns.length) * 26 + 14)
 
   const cls = [
     styles.node,
@@ -18,15 +23,27 @@ export default function BridgeNode({ data: rawData, selected }: NodeProps) {
     .filter(Boolean)
     .join(' ')
 
+  const renderHandles = (
+    group: typeof conns,
+    position: Position,
+  ) =>
+    group.map((conn, i) => (
+      <Handle
+        key={conn.handleId}
+        type="source"
+        position={position}
+        id={conn.handleId}
+        style={{ top: `${((i + 1) / (group.length + 1)) * 100}%` }}
+      />
+    ))
+
   return (
-    <div className={cls}>
-      {/* Handles are the connection points on the node.
-          Position.Left/Right tells React Flow where to draw edge endpoints. */}
-      <Handle type="target" position={Position.Left} />
+    <div className={cls} style={{ height: nodeHeight }}>
+      {renderHandles(leftConns,  Position.Left)}
+      {renderHandles(rightConns, Position.Right)}
       <span className={styles.bridgeIcon}>⬡</span>
       <span className={styles.bridgeName}>{data.label}</span>
       <span className={styles.bridgePill}>bridge</span>
-      <Handle type="source" position={Position.Right} />
     </div>
   )
 }
