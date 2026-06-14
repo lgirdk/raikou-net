@@ -35,7 +35,6 @@ export default function Toolbar({
           onClick={() => onTabChange?.(tab)}
           title={`${tab} — click to reload`}
         >
-          <span className={styles.tabDot} />
           {tab}
         </button>
       ))}
