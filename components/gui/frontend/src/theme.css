@@ -1,0 +1,106 @@
+/* Dark mode (default) */
+:root {
+  --bg:       #0d1117;
+  --bg2:      #161b22;
+  --bg3:      #21262d;
+  --border:   #30363d;
+  --text:     #c9d1d9;
+  --text2:    #8b949e;
+  --text3:    #adbac7;
+  --dot:      #21262d;
+
+  --br-bg:    #0a1929;
+  --br-bd:    #388bfd;
+  --br-name:  #79c0ff;
+  --br-pill:  #0c2d6b;
+  --br-glow:  rgba(56, 139, 253, 0.14);
+
+  --ct-bg:    #0a1a0a;
+  --ct-bd:    #3fb950;
+  --ct-name:  #56d364;
+  --ct-glow:  rgba(63, 185, 80, 0.1);
+
+  --vt-bg:    #130f22;
+  --vt-bd:    #bc8cff;
+  --vt-name:  #d2a8ff;
+
+  --sel-bd:   #f0b429;
+  --sel-glow: rgba(240, 180, 41, 0.22);
+
+  --edge-ct:  #56d364;
+  --edge-vt:  #bc8cff;
+  --edge-lbl: #8b949e;
+
+  --sb-bg:    #0d2d18;
+  --sb-fg:    #56d364;
+
+  --rm-bg:    #2d0d0d;
+  --rm-bd:    #6e1818;
+  --rm-fg:    #f85149;
+
+  --ch-add-bg: #0d2d18;
+  --ch-add-bd: #1a4a2e;
+  --ch-rm-bg:  #2d0d0d;
+  --ch-rm-bd:  #4a1a1a;
+}
+
+/* Light mode */
+:root.light {
+  --bg:       #f6f8fa;
+  --bg2:      #ffffff;
+  --bg3:      #eaeef2;
+  --border:   #d0d7de;
+  --text:     #24292f;
+  --text2:    #57606a;
+  --text3:    #24292f;
+  --dot:      #d8dee4;
+
+  --br-bg:    #ddf4ff;
+  --br-bd:    #0969da;
+  --br-name:  #0550ae;
+  --br-pill:  #cae8ff;
+  --br-glow:  rgba(9, 105, 218, 0.1);
+
+  --ct-bg:    #dafbe1;
+  --ct-bd:    #1a7f37;
+  --ct-name:  #116329;
+  --ct-glow:  rgba(26, 127, 55, 0.08);
+
+  --vt-bg:    #f3eeff;
+  --vt-bd:    #8250df;
+  --vt-name:  #6639ba;
+
+  --sel-bd:   #d4a72c;
+  --sel-glow: rgba(212, 167, 44, 0.2);
+
+  --edge-ct:  #1a7f37;
+  --edge-vt:  #8250df;
+  --edge-lbl: #57606a;
+
+  --sb-bg:    #dafbe1;
+  --sb-fg:    #116329;
+
+  --rm-bg:    #fff0ee;
+  --rm-bd:    #ffc1ba;
+  --rm-fg:    #cf222e;
+
+  --ch-add-bg: #dafbe1;
+  --ch-add-bd: #aceebb;
+  --ch-rm-bg:  #fff0ee;
+  --ch-rm-bd:  #ffc1ba;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  overflow: hidden;
+  transition: background 0.2s, color 0.2s;
+}

@@ -1,0 +1,37 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+.canvasPlaceholder {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  background-image: radial-gradient(circle, var(--dot) 1.5px, transparent 1.5px);
+  background-size: 24px 24px;
+  color: var(--text2);
+  font-size: 14px;
+}
+
+.panel {
+  width: 254px;
+  background: var(--bg2);
+  border-left: 1px solid var(--border);
+  padding: 14px;
+  flex-shrink: 0;
+}
+
+.panelHint {
+  font-size: 11px;
+  color: var(--text2);
+}
