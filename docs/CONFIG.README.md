@@ -17,14 +17,15 @@ The configuration follows the following syntax:
         },
         ...
     },
-    "veth_pairs": {
-        "veth_prefix": {
+    "veth_pairs": [
+        {
+            "id": "veth_prefix",
             "on": "bridge_name",
             "map": "source_vlan:destination_vlan",
             "trunk": "no"
         },
         ...
-    },
+    ],
     "container": {
         "container_name": [
             {
@@ -69,16 +70,21 @@ at least an `"iface"` key, and may also carry `"vlan"`, `"trunk"`, or
 
 The `"veth_pairs"` section lets you create a veth pair on a single bridge
 where each leg is tagged with a different VLAN, effectively translating
-between an S-VLAN and a C-VLAN. Each entry is keyed by a short prefix
-(used to name the `v0_<prefix>` / `v1_<prefix>` interfaces, max 8 chars)
-and has the following properties:
+between an S-VLAN and a C-VLAN. Each entry is an object with the following
+properties:
 
+- `"id"`: A short identifier (max 8 chars) used to name the host interfaces:
+  `"eth3"` produces `v0_eth3` and `v1_eth3`.
 - `"on"`: The bridge to attach the veth pair to.
 - `"map"`: The VLAN mapping in the format `"source_vlan:destination_vlan"`.
-  Omit the destination half (e.g. `"100:"`) to leave the `v1_<prefix>` end
+  Omit the destination half (e.g. `"100:"`) to leave the `v1_<id>` end
   dangling.
 - `"trunk"` (optional): `"yes"` to attach as trunk ports instead of access
   ports. Defaults to `"no"`.
+
+> **Legacy syntax:** The old dict form `{"eth3": {"on": "bridgeA", "map":
+> "100:"}}` is still accepted and is automatically converted to list form on
+> first load.
 
 ---
 
