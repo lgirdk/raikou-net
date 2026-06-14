@@ -13,5 +13,8 @@ async def get_current_config() -> dict:
 
     Pure read — no EVENT_LOCK needed. get_config() returns the
     in-memory dict; only the reconcile loop mutates it under the GIL.
+
+    :return: The current topology config dict.
+    :rtype: dict
     """
     return get_config()
