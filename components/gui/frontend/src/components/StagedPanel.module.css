@@ -1,10 +1,21 @@
+/* Outer shell — transitions the width to slide in/out */
 .panel {
   width: 240px;
+  flex-shrink: 0;
+  overflow: hidden;
+  transition: width 0.22s ease;
+}
+.panelCollapsed { width: 0; }
+
+/* Inner content — fixed width so it doesn't squish during transition */
+.inner {
+  width: 240px;
+  min-width: 240px;
+  height: 100%;
   background: var(--bg2);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  flex-shrink: 0;
   overflow-y: auto;
   font-size: 11px;
 }

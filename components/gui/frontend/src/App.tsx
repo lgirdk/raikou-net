@@ -113,6 +113,7 @@ export default function App() {
       <div className={styles.main}>
         <StagedPanel
           ops={ops}
+          collapsed={ops.length === 0 && applyResult === null}
           onRemove={unstageOp}
           onEdit={handleEditOp}
           onClear={clearOps}
@@ -150,6 +151,7 @@ export default function App() {
             } else if (node.type === 'veth') {
               stageOp({ kind: 'remove_veth_pair', id: node.data.label })
             }
+            setSelected(null)   // clear right panel immediately after staging removal
           }}
         />
       </div>
