@@ -1,0 +1,24 @@
+.bar {
+  height: 22px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  font-size: 10px;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.ok  { background: var(--sb-bg); color: var(--sb-fg); }
+.err { background: #2d0d0d; color: #f85149; }
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.spacer { flex: 1; }
+
+.host { opacity: 0.6; }

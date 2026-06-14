@@ -89,3 +89,8 @@ dmypy.json
 smoke.log
 smoke-probe.log
 ci-smoke-artifacts.tar.gz
+.superpowers/
+
+# Node / frontend
+node_modules/
+components/gui/frontend/dist/
