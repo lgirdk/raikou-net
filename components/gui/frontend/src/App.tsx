@@ -115,6 +115,7 @@ export default function App() {
         stagedCount={ops.length}
         onApply={handleApply}
         applying={applying}
+        onTabChange={() => void refresh()}
       />
 
       <div className={styles.main}>
@@ -132,7 +133,7 @@ export default function App() {
           {loading && <div className={styles.loading}>Loading topology…</div>}
           {error   && <div className={styles.error}>Error: {error}</div>}
           {!loading && !error && (
-            <div style={{ flex: 1, position: 'relative' }} onContextMenu={handlePaneContextMenu}>
+            <div className={styles.canvasWrapper} onContextMenu={handlePaneContextMenu}>
               <Canvas
                 initialNodes={nodes}
                 initialEdges={edges}
