@@ -9,6 +9,14 @@
 # Toggle the CPE's virtual WiFi radios with ENABLE_WIFI (default from .env):
 #   ENABLE_WIFI=1 vagrant up
 #   ENABLE_WIFI=1 vagrant provision      # on an already-running VM
+#
+# To choose the provider (e.g. libvirt)
+#   vagrant up --provider=libvirt
+# or
+#   export VAGRANT_DEFAULT_PROVIDER=libvirt
+#   vagrant up
+# or
+#   VAGRANT_DEFAULT_PROVIDER=libvirt vagrant up
 
 def env_from_dotenv(key, default)
   path = File.join(__dir__, ".env")
