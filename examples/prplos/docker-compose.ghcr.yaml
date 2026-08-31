@@ -3,7 +3,7 @@ services:
     router:
         container_name: router
         ports:
-            - 4000:22
+            - 6000:22
         environment:
             - ENABLE_NAT_ON=eth0
             - FRR_AUTO_CONF=yes
@@ -20,7 +20,7 @@ services:
         restart: always
         image: ghcr.io/ketantewari/raikou/cpe:${VERSION}
         ports:
-            - 4004:22
+            - 6004:22
         privileged: true
         network_mode: none
         command: [/bin/ash, -c, sleep 30 && /sbin/init]
@@ -29,7 +29,7 @@ services:
         container_name: sipcenter
         image: ghcr.io/ketantewari/raikou/sipcenter:${VERSION}
         ports:
-            - 4005:22
+            - 6005:22
         environment:
             - KAM_LISTEN_IPv4=172.25.1.5
             - KAM_LISTEN_IPv6=2001:dead:beef:2::5
@@ -42,7 +42,7 @@ services:
         container_name: lan-phone
         image: ghcr.io/ketantewari/raikou/sipphone:${VERSION}
         ports:
-            - 4006:22
+            - 6006:22
         environment:
             - LEGACY=no
         privileged: true
@@ -52,7 +52,7 @@ services:
         container_name: wan-phone
         image: ghcr.io/ketantewari/raikou/sipphone:${VERSION}
         ports:
-            - 4007:22
+            - 6007:22
         environment:
             - LEGACY=no
         privileged: true
@@ -62,8 +62,8 @@ services:
         container_name: wan
         image: ghcr.io/ketantewari/raikou/wan:${VERSION}
         ports:
-            - 4001:22
-            - 8001:8080
+            - 6001:22
+            - 9001:8080
         environment:
             - DNS_UPSTREAM=8.8.8.8
             - LEGACY=no
@@ -74,8 +74,8 @@ services:
         container_name: lan
         image: ghcr.io/ketantewari/raikou/lan:${VERSION}
         ports:
-            - 4002:22
-            - 8002:8080
+            - 6002:22
+            - 9002:8080
         environment:
             - LEGACY=no
         privileged: true
@@ -85,7 +85,7 @@ services:
         container_name: dhcp
         image: ghcr.io/ketantewari/raikou/dhcp:${VERSION}
         ports:
-            - 4003:22
+            - 6003:22
         environment:
             - LEGACY=no
         privileged: true
@@ -130,10 +130,10 @@ services:
             - GENIEACS_MONGODB_CONNECTION_URL=mongodb://admin:bigfoot1@mongo:27017
         privileged: true
         ports:
-            - 4503:22
-            - 7547:7547
-            - 7557:7557
-            - 7567:7567
+            - 6503:22
+            - 8547:7547
+            - 8557:7557
+            - 8567:7567
             - 3000:3000
         volumes:
             - opt_volume:/opt/genieacs/ext
@@ -166,7 +166,7 @@ services:
         container_name: gui
         image: ghcr.io/ketantewari/raikou/gui:${VERSION}
         ports:
-            - 9090:9090
+            - 9080:9090
         environment:
             - ORCHESTRATOR_URL=http://host.docker.internal:8080
         extra_hosts:
