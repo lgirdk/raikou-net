@@ -1,14 +1,22 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 #
-# Brings up an Ubuntu VM, installs Docker + LXD + oras, pulls the RDK rootfs from
-# GHCR, and starts the rdk_lxd bench: the prplos docker stack (orchestrator on
-# Linux bridges) plus a single RDK-generic CPE running as an LXD container wired
-# into the cpe-rtr / lan-cpe bridges.
+# Multi-machine Vagrantfile: brings up VM_COUNT independent Ubuntu VMs, each
+# installing Docker + LXD + oras, pulling the RDK rootfs from GHCR, and
+# running its own copy of the rdk_lxd bench: the prplos docker stack
+# (orchestrator on Linux bridges) plus one RDK-generic CPE running as an LXD
+# container wired into that VM's own cpe-rtr / lan-cpe bridges.
 #
-# Toggle the CPE's virtual WiFi radios with ENABLE_WIFI (default from .env):
+# Each VM has its own kernel, Docker daemon and LXD daemon, so every VM runs
+# the exact same unmodified docker-compose.yaml / config.json / rdk-cpe.sh —
+# nothing internal (bridge names, container names, ports inside the guest)
+# needs to be renamed per instance. Only host-facing bits differ per VM:
+# hostname, the private-network IP, and the forwarded ports' HOST side
+# (offset by PORT_STEP so all VMs are reachable from the workstation at once).
+#
+# Toggle a VM's CPE's virtual WiFi radios with ENABLE_WIFI (default from .env):
 #   ENABLE_WIFI=1 vagrant up
-#   ENABLE_WIFI=1 vagrant provision      # on an already-running VM
+#   ENABLE_WIFI=1 vagrant provision      # on already-running VMs
 #
 # To choose the provider (e.g. libvirt)
 #   vagrant up --provider=libvirt
@@ -29,107 +37,114 @@ def env_from_dotenv(key, default)
   default
 end
 
-COMPOSE_FILE  = "docker-compose.yaml"
-VERSION       = ENV.fetch("VERSION",        env_from_dotenv("VERSION", "v3"))
+COMPOSE_FILE   = "docker-compose.yaml"
+VERSION        = ENV.fetch("VERSION",        env_from_dotenv("VERSION", "v3"))
 RDK_ROOTFS_REF = ENV.fetch("RDK_ROOTFS_REF", env_from_dotenv("RDK_ROOTFS_REF",
-                  "ghcr.io/ketantewari/raikou/rdk-rootfs:qemux86broadband"))
-ENABLE_WIFI   = ENV.fetch("ENABLE_WIFI",    env_from_dotenv("ENABLE_WIFI", "0"))
+                   "ghcr.io/ketantewari/raikou/rdk-rootfs:qemux86broadband"))
+ENABLE_WIFI    = ENV.fetch("ENABLE_WIFI",    env_from_dotenv("ENABLE_WIFI", "0"))
+
+VM_COUNT  = 3    # number of independent single-CPE VMs to bring up
+PORT_STEP = 100  # per-VM offset applied to the HOST side of every forwarded port
 
 compose_path = File.join(__dir__, COMPOSE_FILE)
 abort "#{COMPOSE_FILE} not found in #{__dir__}" unless File.exist?(compose_path)
 
 # Scrape host:container port mappings from the compose file so published services
 # are reachable at localhost:<port> on the workstation (same trick as prplos).
+# Every VM runs this same compose file, so the guest side repeats per VM;
+# PORT_STEP below shifts the HOST side per VM so none of them collide.
 PORTS = File.readlines(compose_path).filter_map { |line|
   line.match(/^\s*-\s+"?(\d+):(\d+)"?\s*$/) { |m| [m[1].to_i, m[2].to_i] }
 }.uniq
 
 Vagrant.configure("2") do |config|
-  config.vm.box      = "generic/ubuntu2204"
-  config.vm.hostname = "raikou-rdk-lxd"
+  (1..VM_COUNT).each do |i|
+    config.vm.define "rdk-lxd-#{i}" do |node|
+      node.vm.box      = "generic/ubuntu2204"
+      node.vm.hostname = "raikou-rdk-lxd-#{i}"
 
-  config.vm.synced_folder ".", "/vagrant",
-    type: "rsync",
-    rsync__exclude: [".git/", ".vagrant/"]
+      node.vm.synced_folder ".", "/vagrant",
+        type: "rsync",
+        rsync__exclude: [".git/", ".vagrant/"]
 
-  # Static IP on a host-only bridge. Remote machines can reach this VM by
-  # adding a route via the workstation: ip route add 192.168.150.0/24 via <host>.
-  # The workstation must have IP forwarding enabled (net.ipv4.ip_forward=1).
-  config.vm.network "private_network", ip: "192.168.150.11"
+      # Static IP on a host-only bridge, one per VM. Remote machines can reach
+      # a VM by adding a route via the workstation: ip route add 192.168.150.0/24 via <host>.
+      # The workstation must have IP forwarding enabled (net.ipv4.ip_forward=1).
+      node.vm.network "private_network", ip: "192.168.150.#{10 + i}"
 
-  PORTS.each do |host_port, guest_port|
-    config.vm.network "forwarded_port",
-      guest: guest_port, host: host_port, host_ip: "0.0.0.0"
-  end
+      PORTS.each do |host_port, guest_port|
+        node.vm.network "forwarded_port",
+          guest: guest_port, host: host_port + (i - 1) * PORT_STEP, host_ip: "0.0.0.0"
+      end
 
-  config.vm.provider "virtualbox" do |vb|
-    vb.memory = 6144
-    vb.cpus   = 4
-  end
+      node.vm.provider "virtualbox" do |vb|
+        vb.memory = 6144
+        vb.cpus   = 4
+      end
 
-  config.vm.provider "libvirt" do |lv|
-    lv.memory = 6144
-    lv.cpus   = 4
-  end
+      node.vm.provider "libvirt" do |lv|
+        lv.memory = 6144
+        lv.cpus   = 4
+      end
 
-  config.vm.provision "shell",
-    env: {
-      "VERSION"        => VERSION,
-      "RDK_ROOTFS_REF" => RDK_ROOTFS_REF,
-      "ENABLE_WIFI"    => ENABLE_WIFI,
-      "COMPOSE_FILE"   => COMPOSE_FILE,
-    },
-    inline: <<-SHELL
-    set -eux
-    export DEBIAN_FRONTEND=noninteractive
-    : "${RDK_ROOTFS_REF:?must be set}"
+      node.vm.provision "shell",
+        env: {
+          "VERSION"        => VERSION,
+          "RDK_ROOTFS_REF" => RDK_ROOTFS_REF,
+          "ENABLE_WIFI"    => ENABLE_WIFI,
+          "COMPOSE_FILE"   => COMPOSE_FILE,
+        },
+        inline: <<-SHELL
+        set -eux
+        export DEBIAN_FRONTEND=noninteractive
+        : "${RDK_ROOTFS_REF:?must be set}"
 
-    # GHCR intermittently returns transient 502s on its registry/token endpoints;
-    # without a retry a single blip aborts the whole (long) provision. Retry the
-    # wrapped command up to 5x with linear backoff (10s, 20s, ...).
-    retry() {
-      local n=0 max=5 delay
-      until "$@"; do
-        n=$((n + 1))
-        [ "$n" -ge "$max" ] && { echo "retry: '$*' failed after ${max} attempts" >&2; return 1; }
-        delay=$((n * 10))
-        echo "retry: '$*' failed (attempt ${n}/${max}, likely transient); sleeping ${delay}s" >&2
-        sleep "$delay"
-      done
-    }
+        # GHCR intermittently returns transient 502s on its registry/token endpoints;
+        # without a retry a single blip aborts the whole (long) provision. Retry the
+        # wrapped command up to 5x with linear backoff (10s, 20s, ...).
+        retry() {
+          local n=0 max=5 delay
+          until "$@"; do
+            n=$((n + 1))
+            [ "$n" -ge "$max" ] && { echo "retry: '$*' failed after ${max} attempts" >&2; return 1; }
+            delay=$((n * 10))
+            echo "retry: '$*' failed (attempt ${n}/${max}, likely transient); sleeping ${delay}s" >&2
+            sleep "$delay"
+          done
+        }
 
-    apt-get update
-    apt-get install -y ca-certificates curl gnupg lsb-release bridge-utils snapd
+        apt-get update
+        apt-get install -y ca-certificates curl gnupg lsb-release bridge-utils snapd
 
-    # Docker Engine + Compose plugin (official repo).
-    if ! command -v docker >/dev/null 2>&1; then
-      install -m 0755 -d /etc/apt/keyrings
-      curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
-        | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-      chmod a+r /etc/apt/keyrings/docker.gpg
-      echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
-        > /etc/apt/sources.list.d/docker.list
-      apt-get update
-      apt-get install -y docker-ce docker-ce-cli containerd.io \
-        docker-buildx-plugin docker-compose-plugin
-    fi
-    usermod -aG docker vagrant
+        # Docker Engine + Compose plugin (official repo).
+        if ! command -v docker >/dev/null 2>&1; then
+          install -m 0755 -d /etc/apt/keyrings
+          curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+            | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+          chmod a+r /etc/apt/keyrings/docker.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
+            > /etc/apt/sources.list.d/docker.list
+          apt-get update
+          apt-get install -y docker-ce docker-ce-cli containerd.io \
+            docker-buildx-plugin docker-compose-plugin
+        fi
+        usermod -aG docker vagrant
 
-    # LXD via snap, initialised via preseed with a dir pool and NO managed bridge
-    # (plain `lxd init --auto` would create the lxdbr0 managed bridge, which we
-    # must avoid — the orchestrator owns the bridges).
-    #
-    # NOTE: Ubuntu ships the lxd snap PREINSTALLED but UNINITIALISED, so gating the
-    # preseed on `command -v lxc` would skip it (the binary is already present) and
-    # leave LXD with no storage pool. Gate the install on the binary, but gate the
-    # preseed on whether our `default` storage pool actually exists — idempotent and
-    # self-healing across re-provisions.
-    if ! command -v lxc >/dev/null 2>&1; then
-      snap install lxd
-    fi
-    lxd waitready --timeout=120 || { echo "LXD daemon not ready after 120s" >&2; exit 1; }
-    if ! lxc storage show default >/dev/null 2>&1; then
-      lxd init --preseed <<'PRESEED'
+        # LXD via snap, initialised via preseed with a dir pool and NO managed bridge
+        # (plain `lxd init --auto` would create the lxdbr0 managed bridge, which we
+        # must avoid — the orchestrator owns the bridges).
+        #
+        # NOTE: Ubuntu ships the lxd snap PREINSTALLED but UNINITIALISED, so gating the
+        # preseed on `command -v lxc` would skip it (the binary is already present) and
+        # leave LXD with no storage pool. Gate the install on the binary, but gate the
+        # preseed on whether our `default` storage pool actually exists — idempotent and
+        # self-healing across re-provisions.
+        if ! command -v lxc >/dev/null 2>&1; then
+          snap install lxd
+        fi
+        lxd waitready --timeout=120 || { echo "LXD daemon not ready after 120s" >&2; exit 1; }
+        if ! lxc storage show default >/dev/null 2>&1; then
+          lxd init --preseed <<'PRESEED'
 config: {}
 networks: []
 storage_pools:
@@ -143,60 +158,60 @@ profiles:
       pool: default
       type: disk
 PRESEED
-    fi
-    usermod -aG lxd vagrant
+        fi
+        usermod -aG lxd vagrant
 
-    # oras CLI for pulling the RDK rootfs from GHCR.
-    if ! command -v oras >/dev/null 2>&1; then
-      ORAS_VERSION=1.2.0
-      case "$(uname -m)" in
-        x86_64)  ORAS_ARCH=amd64 ;;
-        aarch64) ORAS_ARCH=arm64 ;;
-        *)       ORAS_ARCH=amd64 ;;
-      esac
-      curl -fsSL "https://github.com/oras-project/oras/releases/download/v${ORAS_VERSION}/oras_${ORAS_VERSION}_linux_${ORAS_ARCH}.tar.gz" \
-        -o /tmp/oras.tar.gz
-      tar -C /usr/local/bin -xzf /tmp/oras.tar.gz oras
-    fi
+        # oras CLI for pulling the RDK rootfs from GHCR.
+        if ! command -v oras >/dev/null 2>&1; then
+          ORAS_VERSION=1.2.0
+          case "$(uname -m)" in
+            x86_64)  ORAS_ARCH=amd64 ;;
+            aarch64) ORAS_ARCH=arm64 ;;
+            *)       ORAS_ARCH=amd64 ;;
+          esac
+          curl -fsSL "https://github.com/oras-project/oras/releases/download/v${ORAS_VERSION}/oras_${ORAS_VERSION}_linux_${ORAS_ARCH}.tar.gz" \
+            -o /tmp/oras.tar.gz
+          tar -C /usr/local/bin -xzf /tmp/oras.tar.gz oras
+        fi
 
-    # Pull the RDK rootfs OCI artifact into the synced images/ dir.
-    # NOTE: /vagrant is rsync (host->guest only); the pulled artifact is guest-local
-    # and must be re-pulled on each `vagrant destroy && vagrant up`.
-    mkdir -p /vagrant/images
-    ( cd /vagrant/images && retry oras pull "$RDK_ROOTFS_REF" )
-    # The rootfs filename varies by tag (e.g. qemux86 vs bpi); accept any *.tar.bz2.
-    if ! ls /vagrant/images/*.tar.bz2 >/dev/null 2>&1; then
-      echo "oras pull succeeded but no .tar.bz2 rootfs found in /vagrant/images" >&2
-      echo "Files in /vagrant/images:" >&2; ls -l /vagrant/images >&2
-      exit 1
-    fi
+        # Pull the RDK rootfs OCI artifact into the synced images/ dir.
+        # NOTE: /vagrant is rsync (host->guest only); the pulled artifact is guest-local
+        # and must be re-pulled on each `vagrant destroy && vagrant up`.
+        mkdir -p /vagrant/images
+        ( cd /vagrant/images && retry oras pull "$RDK_ROOTFS_REF" )
+        # The rootfs filename varies by tag (e.g. qemux86 vs bpi); accept any *.tar.bz2.
+        if ! ls /vagrant/images/*.tar.bz2 >/dev/null 2>&1; then
+          echo "oras pull succeeded but no .tar.bz2 rootfs found in /vagrant/images" >&2
+          echo "Files in /vagrant/images:" >&2; ls -l /vagrant/images >&2
+          exit 1
+        fi
 
-    # Bridge-netfilter (ebtables) modules the RDK CPE needs. RDK's em_ctl sets up
-    # the ebtables 'broute' table at boot; the LXD container shares the host kernel
-    # but cannot load modules itself (its rootfs has no matching *.ko for this
-    # kernel), so load them on the VM and persist across reboots. NB: deliberately
-    # NOT loading br_netfilter — it would push bridged frames through iptables and
-    # collide with Docker's default FORWARD DROP policy on the orchestrator bridges.
-    modprobe -a ebtable_broute ebtable_filter ebtable_nat || true
-    printf '%s\n' ebtable_broute ebtable_filter ebtable_nat \
-      > /etc/modules-load.d/rdk-ebtables.conf
+        # Bridge-netfilter (ebtables) modules the RDK CPE needs. RDK's em_ctl sets up
+        # the ebtables 'broute' table at boot; the LXD container shares the host kernel
+        # but cannot load modules itself (its rootfs has no matching *.ko for this
+        # kernel), so load them on the VM and persist across reboots. NB: deliberately
+        # NOT loading br_netfilter — it would push bridged frames through iptables and
+        # collide with Docker's default FORWARD DROP policy on the orchestrator bridges.
+        modprobe -a ebtable_broute ebtable_filter ebtable_nat || true
+        printf '%s\n' ebtable_broute ebtable_filter ebtable_nat \
+          > /etc/modules-load.d/rdk-ebtables.conf
 
-    # Virtual WiFi radios, if requested.
-    if [ "${ENABLE_WIFI}" = "1" ]; then
-      echo "options mac80211_hwsim radios=4" > /etc/modprobe.d/mac80211_hwsim.conf
-      modprobe mac80211_hwsim radios=4 || true
-      echo mac80211_hwsim > /etc/modules-load.d/mac80211_hwsim.conf
-    fi
+        # Virtual WiFi radios, if requested.
+        if [ "${ENABLE_WIFI}" = "1" ]; then
+          echo "options mac80211_hwsim radios=4" > /etc/modprobe.d/mac80211_hwsim.conf
+          modprobe mac80211_hwsim radios=4 || true
+          echo mac80211_hwsim > /etc/modules-load.d/mac80211_hwsim.conf
+        fi
 
-    cd /vagrant
-    retry docker compose -f "${COMPOSE_FILE}" pull
+        cd /vagrant
+        retry docker compose -f "${COMPOSE_FILE}" pull
 
-    if systemctl is-active --quiet raikou-rdk-lxd.service; then
-      systemctl stop raikou-rdk-lxd.service
-    fi
+        if systemctl is-active --quiet raikou-rdk-lxd.service; then
+          systemctl stop raikou-rdk-lxd.service
+        fi
 
-    # systemd unit owns the bench lifecycle: bench-up on start, bench-down on stop.
-    cat > /etc/systemd/system/raikou-rdk-lxd.service <<UNIT
+        # systemd unit owns the bench lifecycle: bench-up on start, bench-down on stop.
+        cat > /etc/systemd/system/raikou-rdk-lxd.service <<UNIT
 [Unit]
 Description=Raikou rdk_lxd bench (docker stack + LXD CPE)
 Wants=docker.service snap.lxd.daemon.service network-online.target
@@ -217,8 +232,10 @@ TimeoutStopSec=300
 WantedBy=multi-user.target
 UNIT
 
-    chmod +x /vagrant/bench-up.sh /vagrant/bench-down.sh /vagrant/rdk-cpe.sh
-    systemctl daemon-reload
-    systemctl enable --now raikou-rdk-lxd.service
-  SHELL
+        chmod +x /vagrant/bench-up.sh /vagrant/bench-down.sh /vagrant/rdk-cpe.sh
+        systemctl daemon-reload
+        systemctl enable --now raikou-rdk-lxd.service
+      SHELL
+    end
+  end
 end

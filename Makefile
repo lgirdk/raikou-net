@@ -165,7 +165,7 @@ smoke-up: _smoke_guard build ## Build + ship + compose up (prplos only); leaves 
 # published `ghcr.io/ketantewari/raikou/*:${VERSION}` images. Good for
 # kicking the tyres without waiting on a full host build.
 demo: ## Run an example stack in Vagrant, no local build (EXAMPLE=prplos|rdk_lxd)
-	cd examples/$(EXAMPLE) && vagrant up
+	cd examples/$(EXAMPLE) && vagrant up --provider=libvirt
 	@echo ""
 	@echo "Demo stack '$(EXAMPLE)' is up. Forwarded ports are listed in the Vagrantfile."
 	@echo "For prplos, the orchestrator REST API is on http://localhost:8080."
